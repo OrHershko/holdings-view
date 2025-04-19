@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useStockHistory } from '@/hooks/useStockData';
@@ -6,6 +5,7 @@ import TimeframeSelector from './charts/TimeframeSelector';
 import PriceChart from './charts/PriceChart';
 import VolumeChart from './charts/VolumeChart';
 import RSIChart from './charts/RSIChart';
+import { useToast } from '@/components/ui/use-toast';
 
 interface StockChartProps {
   symbol: string;
@@ -23,9 +23,19 @@ const StockChart: React.FC<StockChartProps> = ({
   changePercent 
 }) => {
   const [timeframe, setTimeframe] = useState<string>('1m');
-  const { data, isLoading } = useStockHistory(symbol, timeframe);
-  
+  const { data, isLoading, error } = useStockHistory(symbol, timeframe);
+  const { toast } = useToast();
   const isPositive = change >= 0;
+
+  React.useEffect(() => {
+    if (error) {
+      toast({
+        title: "Error fetching data",
+        description: "Could not load the chart data. Please try again later.",
+        variant: "destructive",
+      });
+    }
+  }, [error, toast]);
   
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -34,7 +44,7 @@ const StockChart: React.FC<StockChartProps> = ({
           <p className="font-medium text-gray-300">{label}</p>
           {payload.map((entry: any, index: number) => (
             <p key={index} style={{ color: entry.color }}>
-              {entry.name}: {entry.value?.toFixed(2)}
+              {entry.name}: {typeof entry.value === 'number' ? entry.value.toFixed(2) : entry.value}
             </p>
           ))}
         </div>
@@ -45,31 +55,33 @@ const StockChart: React.FC<StockChartProps> = ({
 
   if (isLoading) {
     return (
-      <Card className="ios-card">
+      <Card className="ios-card w-full max-w-[95vw] mx-auto">
         <CardContent className="p-4">
           <div className="h-[500px] flex items-center justify-center">
-            <div className="animate-pulse text-gray-400">Loading chart...</div>
+            <div className="animate-pulse text-gray-400">Loading chart data...</div>
           </div>
         </CardContent>
       </Card>
     );
   }
 
-  const chartData = data ? data.dates.map((date, index) => ({
+  if (!data) return null;
+
+  const chartData = data.dates.map((date, index) => ({
     date,
     price: data.prices[index],
     volume: data.volume?.[index] || 0,
-    sma20: data.sma20?.[index] || 0,
-    sma50: data.sma50?.[index] || 0,
-    rsi: data.rsi?.[index] || 0,
-    macd: data.macd?.[index] || 0,
-    signal: data.signal?.[index] || 0,
-    histogram: data.histogram?.[index] || 0,
-    high: data.high?.[index] || 0,
-    low: data.low?.[index] || 0,
-    open: data.open?.[index] || 0,
-    close: data.close?.[index] || 0,
-  })) : [];
+    sma20: data.sma20?.[index] || null,
+    sma50: data.sma50?.[index] || null,
+    rsi: data.rsi?.[index] || null,
+    macd: data.macd?.[index] || null,
+    signal: data.signal?.[index] || null,
+    histogram: data.histogram?.[index] || null,
+    high: data.high?.[index] || null,
+    low: data.low?.[index] || null,
+    open: data.open?.[index] || null,
+    close: data.close?.[index] || null,
+  }));
   
   return (
     <Card className="ios-card w-full max-w-[95vw] mx-auto">
