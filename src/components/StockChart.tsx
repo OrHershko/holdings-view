@@ -2,7 +2,11 @@
 import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useStockHistory } from '@/hooks/useStockData';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { 
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  ComposedChart, Bar, Area, ReferenceLine, CartesianGrid,
+  Legend
+} from 'recharts';
 
 interface StockChartProps {
   symbol: string;
@@ -32,19 +36,33 @@ const StockChart: React.FC<StockChartProps> = ({
     { value: '1y', label: '1Y' },
   ];
 
-  // Format chart data
+  // Format chart data with technical indicators
   const chartData = data ? data.dates.map((date, index) => ({
     date,
-    price: data.prices[index]
+    price: data.prices[index],
+    volume: data.volume[index],
+    sma20: data.sma20?.[index],
+    sma50: data.sma50?.[index],
+    rsi: data.rsi?.[index],
+    macd: data.macd?.[index],
+    signal: data.signal?.[index],
+    histogram: data.histogram?.[index],
+    high: data.high?.[index],
+    low: data.low?.[index],
+    open: data.open?.[index],
+    close: data.close?.[index],
   })) : [];
 
-  // Format the tooltip
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white p-2 rounded shadow-ios text-xs">
-          <p className="font-medium">{label}</p>
-          <p className="text-ios-blue">${payload[0].value.toFixed(2)}</p>
+        <div className="bg-[#1E1E1E] p-3 rounded shadow-lg border border-gray-800 text-xs">
+          <p className="font-medium text-gray-300">{label}</p>
+          {payload.map((entry: any, index: number) => (
+            <p key={index} style={{ color: entry.color }}>
+              {entry.name}: {entry.value?.toFixed(2)}
+            </p>
+          ))}
         </div>
       );
     }
@@ -56,55 +74,133 @@ const StockChart: React.FC<StockChartProps> = ({
       <CardContent className="p-4">
         <div className="flex justify-between items-start mb-2">
           <div>
-            <h2 className="text-lg font-medium">{symbol}</h2>
-            <p className="text-sm text-ios-gray">{stockName}</p>
+            <h2 className="text-lg font-medium text-white">{symbol}</h2>
+            <p className="text-sm text-gray-400">{stockName}</p>
           </div>
           <div className="text-right">
-            <div className="text-xl font-bold">${currentPrice.toFixed(2)}</div>
-            <div className={isPositive ? 'text-ios-green text-sm' : 'text-ios-red text-sm'}>
+            <div className="text-xl font-bold text-white">${currentPrice.toFixed(2)}</div>
+            <div className={isPositive ? 'text-green-400 text-sm' : 'text-red-400 text-sm'}>
               {isPositive ? '+' : ''}{change.toFixed(2)} ({isPositive ? '+' : ''}{changePercent.toFixed(2)}%)
             </div>
           </div>
         </div>
         
         {isLoading ? (
-          <div className="h-60 flex items-center justify-center">
-            <div className="animate-pulse text-ios-gray">Loading chart...</div>
+          <div className="h-[500px] flex items-center justify-center">
+            <div className="animate-pulse text-gray-400">Loading chart...</div>
           </div>
         ) : (
-          <div className="h-60 mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <XAxis 
-                  dataKey="date" 
-                  tick={{ fontSize: 10 }} 
-                  tickLine={false}
-                  axisLine={false}
-                  interval="preserveStartEnd"
-                  tickFormatter={(value) => {
-                    if (timeframe === '1d') return value.split('T')[1]?.substring(0, 5) || value;
-                    return value.split('-').slice(1).join('/');
-                  }}
-                />
-                <YAxis 
-                  domain={['dataMin - 5', 'dataMax + 5']} 
-                  tick={{ fontSize: 10 }} 
-                  tickLine={false}
-                  axisLine={false}
-                  orientation="right"
-                  tickFormatter={(value) => `$${value.toFixed(0)}`}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Line 
-                  type="monotone" 
-                  dataKey="price" 
-                  stroke={isPositive ? '#34C759' : '#FF3B30'} 
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 6, fill: isPositive ? '#34C759' : '#FF3B30' }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+          <div className="space-y-6">
+            {/* Price Chart with Candlesticks */}
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={chartData}>
+                  <XAxis 
+                    dataKey="date" 
+                    tick={{ fill: '#9CA3AF' }} 
+                    tickLine={{ stroke: '#4B5563' }}
+                    axisLine={{ stroke: '#4B5563' }}
+                  />
+                  <YAxis 
+                    yAxisId="price"
+                    orientation="right"
+                    tick={{ fill: '#9CA3AF' }}
+                    tickLine={{ stroke: '#4B5563' }}
+                    axisLine={{ stroke: '#4B5563' }}
+                    domain={['auto', 'auto']}
+                  />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                  
+                  {/* Candlesticks */}
+                  <Bar
+                    dataKey="high"
+                    fill={isPositive ? "#34D399" : "#EF4444"}
+                    stroke={isPositive ? "#34D399" : "#EF4444"}
+                    yAxisId="price"
+                  />
+                  
+                  {/* Moving Averages */}
+                  <Line
+                    type="monotone"
+                    dataKey="sma20"
+                    stroke="#60A5FA"
+                    dot={false}
+                    yAxisId="price"
+                    name="SMA 20"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="sma50"
+                    stroke="#F59E0B"
+                    dot={false}
+                    yAxisId="price"
+                    name="SMA 50"
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Volume Chart */}
+            <div className="h-[150px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={chartData}>
+                  <XAxis 
+                    dataKey="date" 
+                    tick={{ fill: '#9CA3AF' }}
+                    tickLine={{ stroke: '#4B5563' }}
+                    axisLine={{ stroke: '#4B5563' }}
+                  />
+                  <YAxis 
+                    yAxisId="volume"
+                    orientation="right"
+                    tick={{ fill: '#9CA3AF' }}
+                    tickLine={{ stroke: '#4B5563' }}
+                    axisLine={{ stroke: '#4B5563' }}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar
+                    dataKey="volume"
+                    fill="#6B7280"
+                    yAxisId="volume"
+                    name="Volume"
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* RSI Chart */}
+            <div className="h-[150px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <XAxis 
+                    dataKey="date" 
+                    tick={{ fill: '#9CA3AF' }}
+                    tickLine={{ stroke: '#4B5563' }}
+                    axisLine={{ stroke: '#4B5563' }}
+                  />
+                  <YAxis 
+                    domain={[0, 100]}
+                    orientation="right"
+                    tick={{ fill: '#9CA3AF' }}
+                    tickLine={{ stroke: '#4B5563' }}
+                    axisLine={{ stroke: '#4B5563' }}
+                  />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <ReferenceLine y={70} stroke="#EF4444" strokeDasharray="3 3" />
+                  <ReferenceLine y={30} stroke="#34D399" strokeDasharray="3 3" />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Line
+                    type="monotone"
+                    dataKey="rsi"
+                    stroke="#8B5CF6"
+                    dot={false}
+                    name="RSI"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         )}
         
@@ -112,7 +208,11 @@ const StockChart: React.FC<StockChartProps> = ({
           {timeframes.map((tf) => (
             <button
               key={tf.value}
-              className={`px-3 py-1 rounded-full text-sm ${timeframe === tf.value ? (isPositive ? 'bg-ios-green text-white' : 'bg-ios-red text-white') : 'bg-ios-light-gray text-ios-gray'}`}
+              className={`px-3 py-1 rounded-full text-sm ${
+                timeframe === tf.value 
+                  ? (isPositive ? 'bg-green-500 text-white' : 'bg-red-500 text-white')
+                  : 'bg-gray-800 text-gray-300'
+              }`}
               onClick={() => setTimeframe(tf.value)}
             >
               {tf.label}

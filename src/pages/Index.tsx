@@ -20,7 +20,7 @@ const Index = () => {
   };
   
   return (
-    <div className="min-h-screen bg-ios-background">
+    <div className="min-h-screen bg-[#121212]">
       <Header onSelectStock={handleSelectStock} />
       
       <main className="container max-w-md mx-auto px-4 py-4 pb-20">
@@ -40,13 +40,17 @@ const Index = () => {
         
         {/* Tabs for Portfolio/Watchlist */}
         <Tabs defaultValue="portfolio" className="mt-4">
-          <TabsList className="grid grid-cols-2 mb-4">
-            <TabsTrigger value="portfolio" className="data-[state=active]:bg-ios-blue data-[state=active]:text-white">Portfolio</TabsTrigger>
-            <TabsTrigger value="watchlist" className="data-[state=active]:bg-ios-blue data-[state=active]:text-white">Watchlist</TabsTrigger>
+          <TabsList className="grid grid-cols-2 mb-4 bg-[#1E1E1E]">
+            <TabsTrigger value="portfolio" className="data-[state=active]:bg-ios-blue data-[state=active]:text-white text-gray-300">
+              Portfolio
+            </TabsTrigger>
+            <TabsTrigger value="watchlist" className="data-[state=active]:bg-ios-blue data-[state=active]:text-white text-gray-300">
+              Watchlist
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="portfolio" className="space-y-4 animate-fade-in">
-            <h2 className="text-lg font-medium ml-1">Your Holdings</h2>
+            <h2 className="text-lg font-medium ml-1 text-white">Your Holdings</h2>
             
             {portfolioData?.holdings.map((holding) => (
               <StockCard
@@ -64,20 +68,20 @@ const Index = () => {
       </main>
       
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-ios-light-gray p-3 flex justify-around items-center">
+      <nav className="fixed bottom-0 left-0 right-0 bg-[#1E1E1E] border-t border-gray-800 p-3 flex justify-around items-center">
         <button className="flex flex-col items-center text-ios-blue">
           <Home className="h-6 w-6 mb-1" />
           <span className="text-xs">Home</span>
         </button>
-        <button className="flex flex-col items-center text-ios-gray">
+        <button className="flex flex-col items-center text-gray-400">
           <Search className="h-6 w-6 mb-1" />
           <span className="text-xs">Search</span>
         </button>
-        <button className="flex flex-col items-center text-ios-gray">
+        <button className="flex flex-col items-center text-gray-400">
           <BarChart className="h-6 w-6 mb-1" />
           <span className="text-xs">Markets</span>
         </button>
-        <button className="flex flex-col items-center text-ios-gray">
+        <button className="flex flex-col items-center text-gray-400">
           <User className="h-6 w-6 mb-1" />
           <span className="text-xs">Profile</span>
         </button>
