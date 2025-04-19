@@ -13,10 +13,10 @@ const PriceChart: React.FC<PriceChartProps> = ({ data, isPositive, CustomTooltip
   return (
     <Card className="p-4 bg-[#1E1E1E] border-gray-800">
       <div className="mb-2">
-        <h3 className="text-lg font-medium text-white">Price & Volume Analysis</h3>
+        <h3 className="text-lg font-medium text-white">Price Analysis</h3>
         <p className="text-sm text-gray-400">
-          Shows price action with candlesticks and moving averages (SMA20 & SMA50).
-          Volume bars indicate trading activity.
+          Shows price movement with technical indicators. SMA20 (blue) and SMA50 (orange)
+          help identify trends and potential support/resistance levels.
         </p>
       </div>
       <div className="h-[400px]">

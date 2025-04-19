@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts';
 import { Card } from '@/components/ui/card';
@@ -10,7 +9,7 @@ interface RSIChartProps {
 
 const RSIChart: React.FC<RSIChartProps> = ({ data, CustomTooltip }) => {
   return (
-    <Card className="p-4 bg-[#1E1E1E] border-gray-800">
+    <Card className="p-4 bg-[#1E1E1E] border-gray-800 h-full">
       <div className="mb-2">
         <h3 className="text-lg font-medium text-white">Relative Strength Index (RSI)</h3>
         <p className="text-sm text-gray-400">
@@ -18,7 +17,7 @@ const RSIChart: React.FC<RSIChartProps> = ({ data, CustomTooltip }) => {
           Values range from 0 to 100.
         </p>
       </div>
-      <div className="h-[200px]">
+      <div className="h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
             <XAxis 

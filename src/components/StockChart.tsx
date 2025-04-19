@@ -72,7 +72,7 @@ const StockChart: React.FC<StockChartProps> = ({
   })) : [];
   
   return (
-    <Card className="ios-card">
+    <Card className="ios-card w-full max-w-[95vw] mx-auto">
       <CardContent className="p-4">
         <div className="flex justify-between items-start mb-4">
           <div>
@@ -87,10 +87,16 @@ const StockChart: React.FC<StockChartProps> = ({
           </div>
         </div>
         
-        <div className="space-y-4">
-          <PriceChart data={chartData} isPositive={isPositive} CustomTooltip={CustomTooltip} />
-          <VolumeChart data={chartData} CustomTooltip={CustomTooltip} />
-          <RSIChart data={chartData} CustomTooltip={CustomTooltip} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="col-span-1 md:col-span-2">
+            <PriceChart data={chartData} isPositive={isPositive} CustomTooltip={CustomTooltip} />
+          </div>
+          <div>
+            <VolumeChart data={chartData} CustomTooltip={CustomTooltip} />
+          </div>
+          <div>
+            <RSIChart data={chartData} CustomTooltip={CustomTooltip} />
+          </div>
         </div>
         
         <TimeframeSelector 

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import Header from '@/components/Header';
 import PortfolioSummary from '@/components/PortfolioSummary';
@@ -23,7 +22,7 @@ const Index = () => {
     <div className="min-h-screen bg-[#121212]">
       <Header onSelectStock={handleSelectStock} />
       
-      <main className="container max-w-md mx-auto px-4 py-4 pb-20">
+      <main className="container mx-auto px-4 py-4 pb-20">
         {/* Portfolio Summary */}
         <PortfolioSummary />
         
