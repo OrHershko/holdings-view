@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchStock, fetchStockHistory, fetchPortfolio, fetchWatchlist, searchStocks } from '../services/stockService';
+import { fetchStock, fetchStockHistory, fetchPortfolio, fetchWatchlist, searchStocks } from '@/services/stockService';
 
 export interface StockHistoryData {
   dates: string[];
@@ -26,12 +26,19 @@ export function useStock(symbol: string) {
   });
 }
 
-export function useStockHistory(symbol: string, period: string = '1y') {
+export function useStockHistory(
+  symbol: string,
+  period: string = '1y',
+  interval: string = '1d' // Add interval parameter with default
+) {
   return useQuery<StockHistoryData>({
-    queryKey: ['stockHistory', symbol, period],
-    queryFn: () => fetchStockHistory(symbol, period),
+    // Include interval in the queryKey for unique caching
+    queryKey: ['stockHistory', symbol, period, interval],
+    // Pass interval to the fetch function
+    queryFn: () => fetchStockHistory(symbol, period, interval),
     enabled: !!symbol,
     staleTime: 300000, // 5 minutes
+    // Consider adding placeholderData or initialData if needed
   });
 }
 

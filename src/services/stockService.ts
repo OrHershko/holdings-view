@@ -18,20 +18,33 @@ export const fetchStock = async (symbol: string): Promise<StockData> => {
   };
 };
 
-export const fetchStockHistory = async (symbol: string, period: string = '1y'): Promise<StockHistoryData> => {
-  const response = await fetch(`${API_BASE_URL}/history/${symbol}?period=${period}`);
-  if (!response.ok) throw new Error('Failed to fetch stock history');
+export const fetchStockHistory = async (
+  symbol: string,
+  period: string = '1y',
+  interval: string = '1d' // Default interval
+): Promise<StockHistoryData> => {
+  // Construct URL with both period and interval
+  const response = await fetch(`${API_BASE_URL}/history/${symbol}?period=${period}&interval=${interval}`);
+  if (!response.ok) {
+    const errorBody = await response.text();
+    console.error("API Error Response:", errorBody);
+    throw new Error(`Failed to fetch stock history: ${response.statusText}`);
+  }
   const data = await response.json();
+
   // Transform data to match StockHistoryData interface
+  // Ensure 'Date' field is correctly mapped (backend now standardizes on 'Date')
   return {
-    dates: data.history.map((h: any) => h.Date || h.date),
-    prices: data.history.map((h: any) => h.Close || h.close),
-    volume: data.history.map((h: any) => h.Volume || h.volume),
-    open: data.history.map((h: any) => h.Open || h.open),
-    close: data.history.map((h: any) => h.Close || h.close),
-    high: data.history.map((h: any) => h.High || h.high),
-    low: data.history.map((h: any) => h.Low || h.low),
-    // Add transformations for indicators if they exist in the response
+    dates: data.history.map((h: any) => h.Date), // Use the standardized 'Date' field
+    prices: data.history.map((h: any) => h.Close), // Assuming 'Close' is the primary price
+    volume: data.history.map((h: any) => h.Volume ?? 0), // Use ?? 0 for potential nulls
+    open: data.history.map((h: any) => h.Open ?? null),
+    close: data.history.map((h: any) => h.Close ?? null),
+    high: data.history.map((h: any) => h.High ?? null),
+    low: data.history.map((h: any) => h.Low ?? null),
+    // Indicators might not be returned by default from yfinance history,
+    // they usually require separate calculation or a different library/API endpoint.
+    // Keep these optional or remove if not provided by backend.
     sma20: data.indicators?.sma20,
     sma50: data.indicators?.sma50,
     rsi: data.indicators?.rsi,

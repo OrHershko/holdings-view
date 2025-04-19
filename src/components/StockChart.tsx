@@ -1,10 +1,8 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react'; // Added useMemo
 import { Card, CardContent } from '@/components/ui/card';
 import { useStockHistory } from '@/hooks/useStockData';
 import TimeframeSelector from './charts/TimeframeSelector';
-import PriceChart from './charts/PriceChart';
-import VolumeChart from './charts/VolumeChart';
-import RSIChart from './charts/RSIChart';
+import LightweightStockChart from './charts/LightweightStockChart';
 import { useToast } from '@/components/ui/use-toast';
 
 interface StockChartProps {
@@ -15,105 +13,78 @@ interface StockChartProps {
   changePercent: number;
 }
 
-// Map UI timeframes to API expected values if needed
-const mapTimeframeToApiFormat = (timeframe: string): string => {
-  // If your API expects specific formats, map them here
-  const mappings: Record<string, string> = {
-    '1d': '1d',
-    '1w': '1w',
-    '1m': '1mo', // Ensure this maps to what API expects
-    '6m': '6mo',
-    '1y': '1y'
-  };
-  return mappings[timeframe] || timeframe;
+// Define a type for the API parameters
+interface ApiParams {
+  period: string;
+  interval: string;
+}
+
+// Updated mapping function to return both period and interval
+const mapTimeframeToApiParams = (timeframe: string): ApiParams => {
+  switch (timeframe) {
+    // Intraday examples (adjust period/interval based on desired view & limits)
+    case '15m': return { period: '5d', interval: '15m' }; // 5 days of 15-min data
+    case '1h': return { period: '1mo', interval: '60m' }; // 1 month of 1-hour data (adjust period if needed)
+    // Daily/Weekly examples
+    case '1d': return { period: '1mo', interval: '1d' }; // 1 month of daily data
+    case '1w': return { period: '6mo', interval: '1wk' }; // 6 months of weekly data
+    case '1m': return { period: '1y', interval: '1mo' }; // 1 year of monthly data
+    case '6m': return { period: '5y', interval: '1mo' }; // 5 years of monthly data
+    // Corrected '1y' case to use 'max' period, which is allowed by the backend pattern
+    case '1y': return { period: 'max', interval: '1mo' }; // Use 'max' period instead of '10y'
+    // Default fallback (e.g., for 'max' if you add it)
+    default: return { period: '1y', interval: '1d' };
+  }
 };
 
-const StockChart: React.FC<StockChartProps> = ({ 
-  symbol, 
-  stockName, 
-  currentPrice, 
-  change, 
-  changePercent 
+const StockChart: React.FC<StockChartProps> = ({
+  symbol,
+  stockName,
+  currentPrice,
+  change,
+  changePercent
 }) => {
-  const [timeframe, setTimeframe] = useState<string>('1y');
-  const [zoomedRange, setZoomedRange] = useState<{start: Date, end: Date} | null>(null);
-  const apiTimeframe = mapTimeframeToApiFormat(timeframe);
-  
-  // Pass the mapped timeframe to the API
-  const { data, isLoading, error, refetch } = useStockHistory(symbol, apiTimeframe);
+  const [timeframe, setTimeframe] = useState<string>('1y'); // UI timeframe state
+
+  // Get both period and interval using the mapping function
+  const { period: apiPeriod, interval: apiInterval } = useMemo(
+    () => mapTimeframeToApiParams(timeframe),
+    [timeframe]
+  );
+
+  // Use both period and interval in the hook
+  const { data, isLoading, error, refetch } = useStockHistory(symbol, apiPeriod, apiInterval);
+
   const { toast } = useToast();
   const isPositive = change >= 0;
-  
-  // Force refetch when either symbol or timeframe changes
+
+  // useEffect to refetch when symbol, period, or interval changes
   useEffect(() => {
-    refetch();
-    console.log(`Data fetch triggered for ${symbol} with timeframe ${apiTimeframe}`);
-  }, [symbol, apiTimeframe, refetch]);
-  
-  // Handle timeframe changes and reset zoom
+    console.log(`Data fetch triggered for ${symbol} with period: ${apiPeriod}, interval: ${apiInterval}`);
+    refetch(); // refetch is stable, but including it clarifies intent
+  }, [symbol, apiPeriod, apiInterval, refetch]); // Add apiInterval to dependency array
+
   const handleTimeframeChange = useCallback((newTimeframe: string) => {
-    console.log(`Changing timeframe from ${timeframe} to ${newTimeframe}`);
+    console.log(`Changing UI timeframe from ${timeframe} to ${newTimeframe}`);
     setTimeframe(newTimeframe);
-    setZoomedRange(null);
-  }, [timeframe]);
-  
-  // Handle chart zoom events
-  const handleChartZoom = useCallback((start: Date, end: Date) => {
-    setZoomedRange({ start, end });
-    
-    // Calculate approximate timeframe from zoom range
-    const durationDays = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
-    console.log(`Chart zoomed to range: ${durationDays.toFixed(1)} days`);
-    
-    // Optional: Fetch more granular data if needed
-    // For now, we'll just track the zoom state
-  }, []);
+    // No need to manually call refetch here, the useEffect above will handle it
+  }, [timeframe]); // Keep dependency only on UI timeframe
 
-  React.useEffect(() => {
-    if (error) {
-      toast({
-        title: "Error fetching data",
-        description: "Could not load the chart data. Please try again later.",
-        variant: "destructive",
-      });
-    }
-  }, [error, toast]);
-  
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      const candleData = payload.find((p: any) => p.dataKey === 'close')?.payload; 
-      
-      return (
-        <div className="bg-[#1E1E1E] p-3 rounded shadow-lg border border-gray-800 text-xs text-white">
-          <p className="font-medium text-gray-300 mb-2">{label}</p>
-          
-          {candleData && (
-            <div className="mb-2">
-              <p>Open: <span className="font-semibold">${candleData.open?.toFixed(2)}</span></p>
-              <p>High: <span className="font-semibold">${candleData.high?.toFixed(2)}</span></p>
-              <p>Low: <span className="font-semibold">${candleData.low?.toFixed(2)}</span></p>
-              <p>Close: <span className="font-semibold">${candleData.close?.toFixed(2)}</span></p>
-            </div>
-          )}
-
-          {payload.map((entry: any, index: number) => {
-            if (entry.dataKey === 'close' && candleData) {
-              return null;
-            }
-            if (entry.value !== undefined && entry.value !== null) {
-              return (
-                <p key={index} style={{ color: entry.color }}>
-                  {entry.name}: {typeof entry.value === 'number' ? entry.value.toFixed(2) : entry.value}
-                </p>
-              );
-            }
-            return null;
-          })}
-        </div>
-      );
-    }
-    return null;
-  };
+  // Ensure chartData mapping uses the correct fields from the updated service response
+  const chartData = useMemo(() => {
+      if (!data?.dates) return [];
+      return data.dates.map((date, index) => ({
+        date, // Already a string from the service
+        volume: data.volume?.[index] ?? 0,
+        sma20: data.sma20?.[index] ?? null, // Keep if backend calculates them
+        sma50: data.sma50?.[index] ?? null, // Keep if backend calculates them
+        rsi: data.rsi?.[index] ?? null,     // Keep if backend calculates them
+        high: data.high?.[index] ?? null,
+        low: data.low?.[index] ?? null,
+        open: data.open?.[index] ?? null,
+        close: data.close?.[index] ?? null,
+      }));
+  }, [data]);
 
   if (isLoading) {
     return (
@@ -127,27 +98,44 @@ const StockChart: React.FC<StockChartProps> = ({
     );
   }
 
-  if (!data) return null;
+  if (error) {
+    return (
+      <Card className="ios-card w-full max-w-[95vw] mx-auto">
+        <CardContent className="p-4">
+          <div className="h-[500px] flex items-center justify-center text-red-500">
+            Error loading chart data.
+          </div>
+          <TimeframeSelector
+            timeframe={timeframe}
+            isPositive={isPositive}
+            onTimeframeChange={handleTimeframeChange}
+          />
+        </CardContent>
+      </Card>
+    );
+  }
 
-  const chartData = data.dates.map((date, index) => ({
-    date,
-    price: data.prices[index],
-    volume: data.volume?.[index] || 0,
-    sma20: data.sma20?.[index] || null,
-    sma50: data.sma50?.[index] || null,
-    rsi: data.rsi?.[index] || null,
-    macd: data.macd?.[index] || null,
-    signal: data.signal?.[index] || null,
-    histogram: data.histogram?.[index] || null,
-    high: data.high?.[index] || null,
-    low: data.low?.[index] || null,
-    open: data.open?.[index] || null,
-    close: data.close?.[index] || null,
-  }));
-  
+  if (!data || chartData.length === 0) {
+    return (
+      <Card className="ios-card w-full max-w-[95vw] mx-auto">
+        <CardContent className="p-4">
+          <div className="h-[500px] flex items-center justify-center text-gray-400">
+            No data available for this timeframe/interval.
+          </div>
+          <TimeframeSelector
+            timeframe={timeframe}
+            isPositive={isPositive}
+            onTimeframeChange={handleTimeframeChange}
+          />
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="ios-card w-full max-w-[95vw] mx-auto">
       <CardContent className="p-4">
+        {/* Header */}
         <div className="flex justify-between items-start mb-4">
           <div>
             <h2 className="text-lg font-medium text-white">{symbol}</h2>
@@ -160,42 +148,21 @@ const StockChart: React.FC<StockChartProps> = ({
             </div>
           </div>
         </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="col-span-1 md:col-span-2">
-            <PriceChart 
-              data={chartData} 
-              isPositive={isPositive} 
-              timeframe={timeframe}
-              onZoom={handleChartZoom}
-              CustomTooltip={CustomTooltip} 
-            />
-          </div>
-          <div>
-            <VolumeChart data={chartData} CustomTooltip={CustomTooltip} />
-          </div>
-          <div>
-            <RSIChart data={chartData} CustomTooltip={CustomTooltip} />
-          </div>
+
+        {/* Chart */}
+        <div className="mb-4">
+          <LightweightStockChart
+            data={chartData}
+            timeframe={timeframe} // Pass UI timeframe for potential internal logic
+          />
         </div>
-        
-        <TimeframeSelector 
-          timeframe={timeframe} 
-          isPositive={isPositive} 
-          onTimeframeChange={handleTimeframeChange} 
+
+        {/* Timeframe Selector */}
+        <TimeframeSelector
+          timeframe={timeframe}
+          isPositive={isPositive}
+          onTimeframeChange={handleTimeframeChange}
         />
-        
-        {zoomedRange && (
-          <div className="mt-2 text-xs text-gray-400">
-            <span>Zoomed view: {zoomedRange.start.toLocaleDateString()} - {zoomedRange.end.toLocaleDateString()}</span>
-            <button 
-              className="ml-2 underline hover:text-white"
-              onClick={() => handleTimeframeChange(timeframe)}
-            >
-              Reset zoom
-            </button>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
