@@ -7,6 +7,7 @@ import StockCard from '@/components/StockCard';
 import WatchlistCard from '@/components/WatchlistCard';
 import { usePortfolio, useStock } from '@/hooks/useStockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Home, Search, BarChart, User } from 'lucide-react';
 
 const Index = () => {
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
@@ -65,19 +66,19 @@ const Index = () => {
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-ios-light-gray p-3 flex justify-around items-center">
         <button className="flex flex-col items-center text-ios-blue">
-          <home-icon className="h-6 w-6 mb-1" />
+          <Home className="h-6 w-6 mb-1" />
           <span className="text-xs">Home</span>
         </button>
         <button className="flex flex-col items-center text-ios-gray">
-          <search className="h-6 w-6 mb-1" />
+          <Search className="h-6 w-6 mb-1" />
           <span className="text-xs">Search</span>
         </button>
         <button className="flex flex-col items-center text-ios-gray">
-          <chart-bar className="h-6 w-6 mb-1" />
+          <BarChart className="h-6 w-6 mb-1" />
           <span className="text-xs">Markets</span>
         </button>
         <button className="flex flex-col items-center text-ios-gray">
-          <user className="h-6 w-6 mb-1" />
+          <User className="h-6 w-6 mb-1" />
           <span className="text-xs">Profile</span>
         </button>
       </nav>
