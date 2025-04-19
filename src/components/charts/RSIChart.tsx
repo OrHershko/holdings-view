@@ -14,7 +14,7 @@ const RSIChart: React.FC<RSIChartProps> = ({ data, CustomTooltip }) => {
       <div className="mb-2">
         <h3 className="text-lg font-medium text-white">Relative Strength Index (RSI)</h3>
         <p className="text-sm text-gray-400">
-          RSI measures momentum and identifies overbought (>70) or oversold (<30) conditions.
+          RSI measures momentum and identifies overbought (&gt;70) or oversold (&lt;30) conditions.
           Values range from 0 to 100.
         </p>
       </div>
