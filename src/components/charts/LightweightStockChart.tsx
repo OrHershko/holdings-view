@@ -14,7 +14,6 @@ import {
 
 interface Props {
   data: any[];     
-  timeframe: string;
 }
 
 /* ---------- helper ---------- */
@@ -47,7 +46,7 @@ const toSeriesData = (raw: any[]) => {
 };
 
 /* ---------- component ---------- */
-const LightweightStockChart: React.FC<Props> = ({ data, timeframe }) => {
+const LightweightStockChart: React.FC<Props> = ({ data }) => {
   const divRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<'Candlestick'>>();
@@ -112,7 +111,7 @@ const LightweightStockChart: React.FC<Props> = ({ data, timeframe }) => {
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [data, timeframe]);
+  }, [data]);
 
   /* cleanup once */
   useEffect(() => () => chartRef.current?.remove(), []);
