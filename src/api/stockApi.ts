@@ -1,4 +1,3 @@
-
 // Mock API for frontend development
 // In a real application, this would connect to our Python backend
 
@@ -31,6 +30,22 @@ interface PortfolioSummary {
   totalGainPercent: number;
   dayChange: number;
   dayChangePercent: number;
+}
+
+interface StockHistoryData {
+  dates: string[];
+  prices: number[];
+  volume?: number[];
+  high?: number[];
+  low?: number[];
+  open?: number[];
+  close?: number[];
+  sma20?: number[];
+  sma50?: number[];
+  rsi?: number[];
+  macd?: number[];
+  signal?: number[];
+  histogram?: number[];
 }
 
 // Mock data for frontend development
@@ -172,11 +187,8 @@ export const fetchWatchlist = async (): Promise<StockData[]> => {
   return mockWatchlist.map(symbol => mockStocks[symbol]).filter(Boolean);
 };
 
-// For the chart data, we'll generate some mock historical data
-export const fetchStockHistory = async (symbol: string, period: string = '1y'): Promise<{
-  dates: string[];
-  prices: number[];
-}> => {
+// For the chart data, we'll generate some mock historical data with technical indicators
+export const fetchStockHistory = async (symbol: string, period: string = '1y'): Promise<StockHistoryData> => {
   await new Promise(resolve => setTimeout(resolve, 700)); // Simulate API delay
   
   const basePrice = mockStocks[symbol]?.price || 100;
@@ -188,10 +200,15 @@ export const fetchStockHistory = async (symbol: string, period: string = '1y'): 
   else if (period === '6m') days = 180;
   else if (period === '1m') days = 30;
   else if (period === '1w') days = 7;
-  else if (period === '1d') days = 1;
+  else if (period === '1d') days = 24; // Hourly for 1d
   
   const dates: string[] = [];
   const prices: number[] = [];
+  const volume: number[] = [];
+  const high: number[] = [];
+  const low: number[] = [];
+  const open: number[] = [];
+  const close: number[] = [];
   
   // Generate dates and prices
   const now = new Date();
@@ -200,15 +217,103 @@ export const fetchStockHistory = async (symbol: string, period: string = '1y'): 
     date.setDate(date.getDate() - i);
     dates.push(date.toISOString().split('T')[0]);
     
-    // Generate a random walk for the price
-    if (i === days) {
-      prices.push(basePrice * (1 - Math.random() * 0.1));
+    // Generate data for OHLC
+    const dailyVolatility = volatility * (Math.random() + 0.5); // Random volatility factor
+    const openPrice = i === days 
+      ? basePrice * (1 - Math.random() * 0.1) 
+      : close[close.length - 1];
+    
+    const highPrice = openPrice * (1 + dailyVolatility * Math.random());
+    const lowPrice = openPrice * (1 - dailyVolatility * Math.random());
+    const closePrice = lowPrice + Math.random() * (highPrice - lowPrice);
+    
+    open.push(openPrice);
+    high.push(highPrice);
+    low.push(lowPrice);
+    close.push(closePrice);
+    prices.push(closePrice); // Use close as the main price
+    
+    // Generate random volume
+    volume.push(Math.floor(Math.random() * 10000000) + 1000000);
+  }
+  
+  // Calculate SMA20 (20-day moving average)
+  const sma20: number[] = [];
+  for (let i = 0; i < close.length; i++) {
+    if (i < 20) {
+      sma20.push(0); // Not enough data points yet
     } else {
-      const prevPrice = prices[prices.length - 1];
-      const change = prevPrice * volatility * (Math.random() - 0.5);
-      prices.push(prevPrice + change);
+      const sum = close.slice(i - 20, i).reduce((a, b) => a + b, 0);
+      sma20.push(sum / 20);
     }
   }
   
-  return { dates, prices };
+  // Calculate SMA50 (50-day moving average)
+  const sma50: number[] = [];
+  for (let i = 0; i < close.length; i++) {
+    if (i < 50) {
+      sma50.push(0); // Not enough data points yet
+    } else {
+      const sum = close.slice(i - 50, i).reduce((a, b) => a + b, 0);
+      sma50.push(sum / 50);
+    }
+  }
+  
+  // Generate pseudo-RSI (not the actual calculation, just for visual)
+  const rsi: number[] = [];
+  for (let i = 0; i < close.length; i++) {
+    if (i === 0) {
+      rsi.push(50); // Start at neutral
+    } else {
+      const prevRsi = rsi[i - 1];
+      const change = close[i] - close[i - 1];
+      // Simulate RSI movement based on price change
+      const newRsi = prevRsi + (change > 0 ? 2 : -2) * Math.random() * 5;
+      rsi.push(Math.max(0, Math.min(100, newRsi))); // Keep between 0-100
+    }
+  }
+  
+  // Generate pseudo-MACD data (not actual calculation, just for visual)
+  const macd: number[] = [];
+  const signal: number[] = [];
+  const histogram: number[] = [];
+  
+  for (let i = 0; i < close.length; i++) {
+    if (i === 0) {
+      macd.push(0);
+      signal.push(0);
+      histogram.push(0);
+    } else {
+      // Simulate MACD line
+      const prevMacd = macd[i - 1];
+      const macdChange = (close[i] - close[i - 1]) / close[i - 1] * 5;
+      const newMacd = prevMacd + macdChange;
+      macd.push(newMacd);
+      
+      // Simulate signal line (9-day EMA of MACD)
+      const prevSignal = signal[i - 1];
+      const signalChange = (newMacd - prevSignal) * 0.2; // Approximate EMA factor
+      const newSignal = prevSignal + signalChange;
+      signal.push(newSignal);
+      
+      // Calculate histogram (MACD - Signal)
+      histogram.push(newMacd - newSignal);
+    }
+  }
+  
+  return { 
+    dates, 
+    prices, 
+    volume, 
+    high, 
+    low, 
+    open, 
+    close, 
+    sma20, 
+    sma50, 
+    rsi, 
+    macd, 
+    signal, 
+    histogram 
+  };
 };

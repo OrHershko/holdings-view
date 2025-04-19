@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { useStockHistory } from '@/hooks/useStockData';
+import { useStockHistory, StockHistoryData } from '@/hooks/useStockData';
 import { 
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   ComposedChart, Bar, Area, ReferenceLine, CartesianGrid,
@@ -36,21 +36,21 @@ const StockChart: React.FC<StockChartProps> = ({
     { value: '1y', label: '1Y' },
   ];
 
-  // Format chart data with technical indicators
+  // Format chart data with technical indicators, safely handling optional properties
   const chartData = data ? data.dates.map((date, index) => ({
     date,
     price: data.prices[index],
-    volume: data.volume[index],
-    sma20: data.sma20?.[index],
-    sma50: data.sma50?.[index],
-    rsi: data.rsi?.[index],
-    macd: data.macd?.[index],
-    signal: data.signal?.[index],
-    histogram: data.histogram?.[index],
-    high: data.high?.[index],
-    low: data.low?.[index],
-    open: data.open?.[index],
-    close: data.close?.[index],
+    volume: data.volume?.[index] || 0,
+    sma20: data.sma20?.[index] || 0,
+    sma50: data.sma50?.[index] || 0,
+    rsi: data.rsi?.[index] || 0,
+    macd: data.macd?.[index] || 0,
+    signal: data.signal?.[index] || 0,
+    histogram: data.histogram?.[index] || 0,
+    high: data.high?.[index] || 0,
+    low: data.low?.[index] || 0,
+    open: data.open?.[index] || 0,
+    close: data.close?.[index] || 0,
   })) : [];
 
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -114,93 +114,103 @@ const StockChart: React.FC<StockChartProps> = ({
                   <Legend />
                   
                   {/* Candlesticks */}
-                  <Bar
-                    dataKey="high"
-                    fill={isPositive ? "#34D399" : "#EF4444"}
-                    stroke={isPositive ? "#34D399" : "#EF4444"}
-                    yAxisId="price"
-                  />
+                  {data?.high && data?.low && (
+                    <Bar
+                      dataKey="high"
+                      fill={isPositive ? "#34D399" : "#EF4444"}
+                      stroke={isPositive ? "#34D399" : "#EF4444"}
+                      yAxisId="price"
+                    />
+                  )}
                   
                   {/* Moving Averages */}
-                  <Line
-                    type="monotone"
-                    dataKey="sma20"
-                    stroke="#60A5FA"
-                    dot={false}
-                    yAxisId="price"
-                    name="SMA 20"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="sma50"
-                    stroke="#F59E0B"
-                    dot={false}
-                    yAxisId="price"
-                    name="SMA 50"
-                  />
+                  {data?.sma20 && (
+                    <Line
+                      type="monotone"
+                      dataKey="sma20"
+                      stroke="#60A5FA"
+                      dot={false}
+                      yAxisId="price"
+                      name="SMA 20"
+                    />
+                  )}
+                  {data?.sma50 && (
+                    <Line
+                      type="monotone"
+                      dataKey="sma50"
+                      stroke="#F59E0B"
+                      dot={false}
+                      yAxisId="price"
+                      name="SMA 50"
+                    />
+                  )}
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
 
             {/* Volume Chart */}
-            <div className="h-[150px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData}>
-                  <XAxis 
-                    dataKey="date" 
-                    tick={{ fill: '#9CA3AF' }}
-                    tickLine={{ stroke: '#4B5563' }}
-                    axisLine={{ stroke: '#4B5563' }}
-                  />
-                  <YAxis 
-                    yAxisId="volume"
-                    orientation="right"
-                    tick={{ fill: '#9CA3AF' }}
-                    tickLine={{ stroke: '#4B5563' }}
-                    axisLine={{ stroke: '#4B5563' }}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar
-                    dataKey="volume"
-                    fill="#6B7280"
-                    yAxisId="volume"
-                    name="Volume"
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
+            {data?.volume && (
+              <div className="h-[150px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={chartData}>
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fill: '#9CA3AF' }}
+                      tickLine={{ stroke: '#4B5563' }}
+                      axisLine={{ stroke: '#4B5563' }}
+                    />
+                    <YAxis 
+                      yAxisId="volume"
+                      orientation="right"
+                      tick={{ fill: '#9CA3AF' }}
+                      tickLine={{ stroke: '#4B5563' }}
+                      axisLine={{ stroke: '#4B5563' }}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar
+                      dataKey="volume"
+                      fill="#6B7280"
+                      yAxisId="volume"
+                      name="Volume"
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            )}
 
             {/* RSI Chart */}
-            <div className="h-[150px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <XAxis 
-                    dataKey="date" 
-                    tick={{ fill: '#9CA3AF' }}
-                    tickLine={{ stroke: '#4B5563' }}
-                    axisLine={{ stroke: '#4B5563' }}
-                  />
-                  <YAxis 
-                    domain={[0, 100]}
-                    orientation="right"
-                    tick={{ fill: '#9CA3AF' }}
-                    tickLine={{ stroke: '#4B5563' }}
-                    axisLine={{ stroke: '#4B5563' }}
-                  />
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <ReferenceLine y={70} stroke="#EF4444" strokeDasharray="3 3" />
-                  <ReferenceLine y={30} stroke="#34D399" strokeDasharray="3 3" />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Line
-                    type="monotone"
-                    dataKey="rsi"
-                    stroke="#8B5CF6"
-                    dot={false}
-                    name="RSI"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            {data?.rsi && (
+              <div className="h-[150px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fill: '#9CA3AF' }}
+                      tickLine={{ stroke: '#4B5563' }}
+                      axisLine={{ stroke: '#4B5563' }}
+                    />
+                    <YAxis 
+                      domain={[0, 100]}
+                      orientation="right"
+                      tick={{ fill: '#9CA3AF' }}
+                      tickLine={{ stroke: '#4B5563' }}
+                      axisLine={{ stroke: '#4B5563' }}
+                    />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <ReferenceLine y={70} stroke="#EF4444" strokeDasharray="3 3" />
+                    <ReferenceLine y={30} stroke="#34D399" strokeDasharray="3 3" />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Line
+                      type="monotone"
+                      dataKey="rsi"
+                      stroke="#8B5CF6"
+                      dot={false}
+                      name="RSI"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
         )}
         

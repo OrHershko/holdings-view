@@ -2,6 +2,22 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchStock, fetchStockHistory, fetchPortfolio, fetchWatchlist, searchStocks } from '../api/stockApi';
 
+export interface StockHistoryData {
+  dates: string[];
+  prices: number[];
+  volume?: number[];
+  high?: number[];
+  low?: number[];
+  open?: number[];
+  close?: number[];
+  sma20?: number[];
+  sma50?: number[];
+  rsi?: number[];
+  macd?: number[];
+  signal?: number[];
+  histogram?: number[];
+}
+
 export function useStock(symbol: string) {
   return useQuery({
     queryKey: ['stock', symbol],
@@ -12,7 +28,7 @@ export function useStock(symbol: string) {
 }
 
 export function useStockHistory(symbol: string, period: string = '1y') {
-  return useQuery({
+  return useQuery<StockHistoryData>({
     queryKey: ['stockHistory', symbol, period],
     queryFn: () => fetchStockHistory(symbol, period),
     enabled: !!symbol,
