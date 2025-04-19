@@ -89,42 +89,6 @@
   }
 
   .stock-up {
-    @apply text-green-400;
-  }
-
-  .stock-down {
-    @apply text-red-400;
-  }
-}
-
-@layer components {
-  .ios-card {
-    @apply bg-white rounded-xl shadow-ios p-4 mb-4;
-  }
-  
-  .ios-button {
-    @apply bg-ios-blue text-white font-medium py-2 px-4 rounded-lg;
-  }
-
-  .stock-up {
-    @apply text-ios-green;
-  }
-
-  .stock-down {
-    @apply text-ios-red;
-  }
-}
-
-@layer components {
-  .ios-card {
-    @apply bg-white rounded-xl shadow-ios p-4 mb-4;
-  }
-  
-  .ios-button {
-    @apply bg-ios-blue text-white font-medium py-2 px-4 rounded-lg;
-  }
-
-  .stock-up {
     @apply text-ios-green;
   }
 
@@ -147,27 +111,37 @@
     animation: logo-spin infinite 20s linear;
   }
 }
+
 @keyframes accordion-down {
-					from {
-						height: '0'
-					},
-					to {
-						height: 'var(--radix-accordion-content-height)'
-					}
-				},
-				'accordion-up': {
-					from: {
-						height: 'var(--radix-accordion-content-height)'
-					},
-					to: {
-						height: '0'
-					}
-				},
-				'fade-in': {
-					'0%': { opacity: '0' },
-					'100%': { opacity: '1' }
-				},
-				'slide-up': {
-					'0%': { transform: 'translateY(10px)', opacity: '0' },
-					'100%': { transform: 'translateY(0)', opacity: '1' }
-				}
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
+@keyframes fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes slide-up {
+  0% { 
+    transform: translateY(10px); 
+    opacity: 0; 
+  }
+  100% { 
+    transform: translateY(0); 
+    opacity: 1; 
+  }
+}
