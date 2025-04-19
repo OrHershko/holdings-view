@@ -1,6 +1,5 @@
-
 import { useQuery } from '@tanstack/react-query';
-import { fetchStock, fetchStockHistory, fetchPortfolio, fetchWatchlist, searchStocks } from '../api/stockApi';
+import { fetchStock, fetchStockHistory, fetchPortfolio, fetchWatchlist, searchStocks } from '../services/stockService';
 
 export interface StockHistoryData {
   dates: string[];

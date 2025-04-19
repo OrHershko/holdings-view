@@ -19,4 +19,8 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // Add optimizeDeps configuration
+  optimizeDeps: {
+    include: ['lightweight-charts'],
+  },
 }));
