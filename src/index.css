@@ -7,32 +7,23 @@
   :root {
     --background: 0 0% 7%;
     --foreground: 0 0% 98%;
-
     --card: 0 0% 10%;
     --card-foreground: 0 0% 98%;
-
     --popover: 0 0% 10%;
     --popover-foreground: 0 0% 98%;
-
     --primary: 267 100% 56%;
     --primary-foreground: 0 0% 98%;
-
     --secondary: 0 0% 14.9%;
     --secondary-foreground: 0 0% 98%;
-
     --muted: 0 0% 15%;
     --muted-foreground: 0 0% 65%;
-
     --accent: 267 100% 56%;
     --accent-foreground: 0 0% 98%;
-
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-
     --border: 0 0% 14.9%;
     --input: 0 0% 15.9%;
     --ring: 267 100% 56%;
-
     --radius: 0.75rem;
   }
 }
@@ -41,7 +32,6 @@
   * {
     @apply border-border;
   }
-
   body {
     @apply bg-[#121212] text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
@@ -49,22 +39,6 @@
 }
 
 @layer components {
-  .ios-card {
-    @apply bg-[#1A1A1A] rounded-xl shadow-lg p-4 mb-4 border-none;
-  }
-  
-  .ios-button {
-    @apply bg-primary text-white font-medium py-2 px-4 rounded-lg;
-  }
-
-  .stock-up {
-    @apply text-green-400;
-  }
-
-  .stock-down {
-    @apply text-red-400;
-  }
-  
   .fierce-sidebar {
     @apply bg-[#1A1A1A] bg-opacity-80 backdrop-blur-md border-r border-gray-800;
   }
@@ -80,15 +54,11 @@
   .fierce-input {
     @apply bg-black/40 border border-gray-800 rounded-full px-4 py-2 text-white;
   }
-  
-  .donut-chart-container {
-    @apply relative flex items-center justify-center;
+
+  .glass-effect {
+    @apply bg-[#1A1A1A]/80 backdrop-blur-md border border-gray-800;
   }
-  
-  .donut-chart-text {
-    @apply absolute text-center;
-  }
-  
+
   .period-button {
     @apply px-3 py-1 text-xs font-medium rounded-full transition-colors;
   }
@@ -102,73 +72,3 @@
   }
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.5s ease-out;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-slide-up {
-  animation: slideUp 0.3s ease-out;
-}
-
-/* Customize TabsTrigger */
-.tabs-trigger {
-  @apply text-sm py-1.5 px-3 rounded-md data-[state=active]:bg-primary data-[state=active]:text-white;
-}
-
-/* Customize scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: #1E1E1E;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #444;
-}
-
-/* Custom gradient text */
-.gradient-text {
-  @apply bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-indigo-500;
-}
-
-/* Custom gradient backgrounds */
-.gradient-purple {
-  @apply bg-gradient-to-r from-purple-700 to-indigo-600;
-}
-
-.gradient-card {
-  @apply bg-gradient-to-br from-gray-900 to-black border border-gray-800 rounded-xl;
-}
-
-/* Circular progress */
-.circular-progress {
-  transform: rotate(-90deg);
-}
