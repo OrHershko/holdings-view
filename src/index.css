@@ -1,70 +1,38 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 210 100% 50%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
-    --radius: 0.75rem;
-
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-
-  /* Adding dark mode as default */
-  :root {
-    --background: 240 10% 3.9%;
+    --background: 0 0% 7%;
     --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
+
+    --card: 0 0% 10%;
     --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
+
+    --popover: 0 0% 10%;
     --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
+
+    --primary: 267 100% 56%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 0 0% 14.9%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
+
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 65%;
+
+    --accent: 267 100% 56%;
     --accent-foreground: 0 0% 98%;
+
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+
+    --border: 0 0% 14.9%;
+    --input: 0 0% 15.9%;
+    --ring: 267 100% 56%;
+
     --radius: 0.75rem;
   }
 }
@@ -75,73 +43,77 @@
   }
 
   body {
-    @apply bg-[#121212] text-white;
+    @apply bg-[#121212] text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
 
 @layer components {
   .ios-card {
-    @apply bg-[#1E1E1E] rounded-xl shadow-lg p-4 mb-4 border border-gray-800;
+    @apply bg-[#1A1A1A] rounded-xl shadow-lg p-4 mb-4 border-none;
   }
   
   .ios-button {
-    @apply bg-ios-blue text-white font-medium py-2 px-4 rounded-lg;
+    @apply bg-primary text-white font-medium py-2 px-4 rounded-lg;
   }
 
   .stock-up {
-    @apply text-ios-green;
+    @apply text-green-400;
   }
 
   .stock-down {
-    @apply text-ios-red;
+    @apply text-red-400;
   }
 }
 
-@keyframes logo-spin {
+@keyframes fadeIn {
   from {
-    transform: rotate(0deg);
+    opacity: 0;
   }
   to {
-    transform: rotate(360deg);
+    opacity: 1;
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out;
 }
 
-@keyframes accordion-down {
+@keyframes slideUp {
   from {
-    height: 0;
+    opacity: 0;
+    transform: translateY(10px);
   }
   to {
-    height: var(--radix-accordion-content-height);
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-@keyframes accordion-up {
-  from {
-    height: var(--radix-accordion-content-height);
-  }
-  to {
-    height: 0;
-  }
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
 }
 
-@keyframes fade-in {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
+/* Customize TabsTrigger */
+.tabs-trigger {
+  @apply text-sm py-1.5 px-3 rounded-md data-[state=active]:bg-primary data-[state=active]:text-white;
 }
 
-@keyframes slide-up {
-  0% { 
-    transform: translateY(10px); 
-    opacity: 0; 
-  }
-  100% { 
-    transform: translateY(0); 
-    opacity: 1; 
-  }
+/* Customize scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1E1E1E;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #444;
 }

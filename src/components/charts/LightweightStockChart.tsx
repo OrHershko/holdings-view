@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef } from 'react';
 import {
   createChart,
@@ -7,9 +8,6 @@ import {
   CandlestickData,
   HistogramData,
   LineData,
-  CandlestickSeries,
-  HistogramSeries,
-  LineSeries,
 } from 'lightweight-charts';
 
 interface Props {
@@ -20,38 +18,36 @@ interface Props {
 const toSeriesData = (raw: any[]) => {
   const candles: CandlestickData[] = [];
   const volume: HistogramData[] = [];
-  const rsi: LineData[] = [];
+  const line: LineData[] = []; // Area chart line
 
   raw.forEach((p) => {
     const time = (new Date(p.date).getTime() / 1000) as UTCTimestamp;
 
     if (p.open != null && p.high != null && p.low != null && p.close != null) {
       candles.push({ time, open: p.open, high: p.high, low: p.low, close: p.close });
+      
+      // Also add to line series for area chart
+      line.push({ time, value: p.close });
     }
 
     if (p.volume != null) {
       volume.push({
         time,
         value: p.volume,
-        color: p.close >= p.open ? 'rgba(52, 211, 153, 0.5)' : 'rgba(239, 68, 68, 0.5)',
+        color: p.close >= p.open ? 'rgba(147, 51, 234, 0.3)' : 'rgba(147, 51, 234, 0.15)',
       });
-    }
-
-    if (p.rsi != null) {
-      rsi.push({ time, value: p.rsi });
     }
   });
 
-  return { candles, volume, rsi };
+  return { candles, volume, line };
 };
 
 /* ---------- component ---------- */
 const LightweightStockChart: React.FC<Props> = ({ data }) => {
   const divRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const candleRef = useRef<ISeriesApi<'Candlestick'>>();
+  const areaRef = useRef<ISeriesApi<'Area'>>();
   const volumeRef = useRef<ISeriesApi<'Histogram'>>();
-  const rsiRef = useRef<ISeriesApi<'Line'>>();
 
   /* build / update */
   useEffect(() => {
@@ -61,54 +57,83 @@ const LightweightStockChart: React.FC<Props> = ({ data }) => {
     if (!chartRef.current) {
       chartRef.current = createChart(divRef.current, {
         width: divRef.current.clientWidth,
-        height: 500,
-        layout: { background: { color: '#1E1E1E' }, textColor: '#D1D5DB' },
-        grid: { vertLines: { color: '#374151' }, horzLines: { color: '#374151' } },
-        rightPriceScale: { borderColor: '#4B5563' },
-        timeScale: { borderColor: '#4B5563', timeVisible: true, secondsVisible: false },
-        crosshair: { mode: 1 },
+        height: 300,
+        layout: { 
+          background: { color: '#1A1A1A' }, 
+          textColor: '#666' 
+        },
+        grid: { 
+          vertLines: { color: '#222' }, 
+          horzLines: { color: '#222' } 
+        },
+        rightPriceScale: { 
+          borderColor: '#333',
+          scaleMargins: {
+            top: 0.1,
+            bottom: 0.2,
+          },
+        },
+        timeScale: { 
+          borderColor: '#333', 
+          timeVisible: true, 
+          secondsVisible: false,
+        },
+        crosshair: { 
+          mode: 1,
+          vertLine: {
+            color: '#444',
+            width: 1,
+            style: 1,
+            labelBackgroundColor: '#333',
+          },
+          horzLine: {
+            color: '#444',
+            width: 1,
+            style: 1,
+            labelBackgroundColor: '#333',
+          },
+        },
       });
 
       /* series */
-      candleRef.current = chartRef.current.addSeries(CandlestickSeries, {
-        upColor: '#34D399',
-        downColor: '#EF4444',
-        borderVisible: false,
-        wickUpColor: '#34D399',
-        wickDownColor: '#EF4444',
+      areaRef.current = chartRef.current.addAreaSeries({
+        topColor: 'rgba(147, 51, 234, 0.4)',
+        bottomColor: 'rgba(147, 51, 234, 0.0)',
+        lineColor: 'rgba(147, 51, 234, 1)',
+        lineWidth: 2,
       });
 
-      volumeRef.current = chartRef.current.addSeries(HistogramSeries, {
+      volumeRef.current = chartRef.current.addHistogramSeries({
         priceFormat: { type: 'volume' },
-        priceScaleId: 'vol',
-        lastValueVisible: false,
-        priceLineVisible: false,
+        priceScaleId: 'volume',
+        scaleMargins: {
+          top: 0.8,
+          bottom: 0,
+        },
       });
-      chartRef.current.priceScale('vol').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
-
-      rsiRef.current = chartRef.current.addSeries(LineSeries, {
-        color: '#8B5CF6',
-        lineWidth: 1,
-        priceScaleId: 'rsi',
+      
+      chartRef.current.priceScale('volume').applyOptions({ 
+        scaleMargins: { top: 0.8, bottom: 0 },
+        visible: false,
       });
-      chartRef.current.priceScale('rsi').applyOptions({ scaleMargins: { top: 0.7, bottom: 0.1 } });
-      rsiRef.current.createPriceLine({ price: 70, color: '#EF4444', lineStyle: 2, lineWidth: 1 });
-      rsiRef.current.createPriceLine({ price: 30, color: '#34D399', lineStyle: 2, lineWidth: 1 });
     }
 
     /* push data */
-    const { candles, volume, rsi } = toSeriesData(data);
-    candleRef.current!.setData(candles);
+    const { line, volume } = toSeriesData(data);
+    areaRef.current!.setData(line);
     volumeRef.current!.setData(volume);
-    rsiRef.current!.setData(rsi);
+    
+    // Fit content on initial load or data change
     chartRef.current.timeScale().fitContent();
 
     /* resize */
     const onResize = () => {
       if (chartRef.current && divRef.current) {
-        chartRef.current.resize(divRef.current.clientWidth, 500);
+        chartRef.current.resize(divRef.current.clientWidth, 300);
+        chartRef.current.timeScale().fitContent();
       }
     };
+    
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [data]);
@@ -116,7 +141,7 @@ const LightweightStockChart: React.FC<Props> = ({ data }) => {
   /* cleanup once */
   useEffect(() => () => chartRef.current?.remove(), []);
 
-  return <div ref={divRef} style={{ width: '100%' }} />;
+  return <div ref={divRef} style={{ width: '100%', height: '300px' }} />;
 };
 
 export default LightweightStockChart;
