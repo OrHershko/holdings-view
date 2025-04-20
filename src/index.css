@@ -64,6 +64,42 @@
   .stock-down {
     @apply text-red-400;
   }
+  
+  .fierce-sidebar {
+    @apply bg-[#1A1A1A] bg-opacity-80 backdrop-blur-md border-r border-gray-800;
+  }
+  
+  .fierce-card {
+    @apply bg-[#1A1A1A] bg-opacity-80 backdrop-blur-md border border-gray-800 rounded-xl;
+  }
+  
+  .fierce-button {
+    @apply bg-purple-700 hover:bg-purple-800 text-white px-4 py-2 rounded-full transition-colors;
+  }
+  
+  .fierce-input {
+    @apply bg-black/40 border border-gray-800 rounded-full px-4 py-2 text-white;
+  }
+  
+  .donut-chart-container {
+    @apply relative flex items-center justify-center;
+  }
+  
+  .donut-chart-text {
+    @apply absolute text-center;
+  }
+  
+  .period-button {
+    @apply px-3 py-1 text-xs font-medium rounded-full transition-colors;
+  }
+  
+  .period-button-active {
+    @apply bg-purple-700 text-white;
+  }
+  
+  .period-button-inactive {
+    @apply text-gray-400 hover:bg-gray-800;
+  }
 }
 
 @keyframes fadeIn {
@@ -116,4 +152,23 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #444;
+}
+
+/* Custom gradient text */
+.gradient-text {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-indigo-500;
+}
+
+/* Custom gradient backgrounds */
+.gradient-purple {
+  @apply bg-gradient-to-r from-purple-700 to-indigo-600;
+}
+
+.gradient-card {
+  @apply bg-gradient-to-br from-gray-900 to-black border border-gray-800 rounded-xl;
+}
+
+/* Circular progress */
+.circular-progress {
+  transform: rotate(-90deg);
 }

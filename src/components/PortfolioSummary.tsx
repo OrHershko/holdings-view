@@ -9,7 +9,7 @@ const PortfolioSummary: React.FC = () => {
   
   if (isLoading) {
     return (
-      <Card className="bg-[#1A1A1A] border-none animate-pulse">
+      <Card className="bg-[#1A1A1A]/80 backdrop-blur-md border border-gray-800 animate-pulse">
         <CardContent className="pt-6 pb-6">
           <div className="h-24 bg-gray-800 rounded-md"></div>
         </CardContent>
@@ -22,7 +22,7 @@ const PortfolioSummary: React.FC = () => {
   const { summary } = data;
   
   return (
-    <Card className="bg-[#1A1A1A] border-none">
+    <Card className="bg-[#1A1A1A]/80 backdrop-blur-md border border-gray-800">
       <CardContent className="p-4">
         <div className="flex flex-col space-y-4">
           <div className="flex justify-between items-start">
@@ -36,56 +36,51 @@ const PortfolioSummary: React.FC = () => {
                 </span>
               </div>
             </div>
-            <div className="flex space-x-1">
-              <PeriodButton label="1H" active />
-              <PeriodButton label="1D" />
-              <PeriodButton label="1W" />
+            <div className="flex space-x-1 bg-black/30 backdrop-blur-md rounded-full p-1">
+              <PeriodButton label="1D" active />
+              <PeriodButton label="7D" />
               <PeriodButton label="1M" />
+              <PeriodButton label="YTD" />
               <PeriodButton label="1Y" />
               <PeriodButton label="All" />
             </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <span className="text-sm text-gray-400">Yearly Return</span>
-              <div className="text-xl font-medium text-white">${summary.totalGain.toFixed(2)}</div>
-            </div>
-            <div>
-              <span className="text-sm text-gray-400">Monthly Return</span>
-              <div className="text-xl font-medium text-white">${(summary.totalGain / 12).toFixed(2)}</div>
+          <div className="h-32 mt-2 flex items-end">
+            <div className="w-full h-full relative">
+              <svg className="absolute bottom-0 left-0 right-0" height="100%" width="100%" viewBox="0 0 500 100" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="rgba(139, 92, 246, 0.3)" />
+                    <stop offset="100%" stopColor="rgba(139, 92, 246, 0)" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M0,80 L20,75 L40,70 L60,65 L80,75 L100,60 L120,65 L140,55 L160,60 L180,50 L200,55 L220,40 L240,45 L260,30 L280,35 L300,25 L320,30 L340,20 L360,25 L380,15 L400,20 L420,10 L440,15 L460,5 L480,10 L500,15 L500,100 L0,100 Z"
+                  fill="url(#areaGradient)"
+                />
+                <path
+                  d="M0,80 L20,75 L40,70 L60,65 L80,75 L100,60 L120,65 L140,55 L160,60 L180,50 L200,55 L220,40 L240,45 L260,30 L280,35 L300,25 L320,30 L340,20 L360,25 L380,15 L400,20 L420,10 L440,15 L460,5 L480,10 L500,15"
+                  fill="none"
+                  stroke="#8b5cf6"
+                  strokeWidth="2"
+                />
+              </svg>
             </div>
           </div>
-        </div>
-        
-        {/* Chart Area (placeholder) */}
-        <div className="h-32 mt-4 flex items-end">
-          <div className="w-full h-full bg-gradient-to-t from-purple-600/20 to-transparent relative">
-            <svg className="absolute bottom-0 left-0 right-0" height="100%" width="100%" viewBox="0 0 500 100" preserveAspectRatio="none">
-              <path
-                d="M0,100 L20,90 L40,95 L60,85 L80,90 L100,80 L120,85 L140,75 L160,80 L180,70 L200,75 L220,65 L240,70 L260,60 L280,65 L300,55 L320,60 L340,50 L360,55 L380,45 L400,50 L420,40 L440,45 L460,35 L480,40 L500,30 L500,100 L0,100 Z"
-                fill="rgba(147, 51, 234, 0.2)"
-                stroke="rgba(147, 51, 234, 0.8)"
-                strokeWidth="2"
-              />
-            </svg>
+          
+          <div className="grid grid-cols-2 gap-6 mt-4">
+            <div className="bg-black/30 backdrop-blur-md rounded-xl p-4">
+              <span className="text-sm text-gray-400">Daily Updated</span>
+              <div className="text-2xl font-bold text-white mt-1">${summary.totalGain.toFixed(2)}</div>
+              <div className="text-green-400 text-sm">+${(summary.totalGain * 0.05).toFixed(2)} today</div>
+            </div>
+            <div className="bg-black/30 backdrop-blur-md rounded-xl p-4">
+              <span className="text-sm text-gray-400">Remaining</span>
+              <div className="text-2xl font-bold text-white mt-1">${(summary.totalValue - summary.totalGain).toFixed(2)}</div>
+              <div className="text-gray-400 text-sm">ends in 3d 5h</div>
+            </div>
           </div>
-        </div>
-        
-        {/* X-axis labels */}
-        <div className="flex justify-between mt-1 text-xs text-gray-500">
-          <span>Apr</span>
-          <span>May</span>
-          <span>Jun</span>
-          <span>Jul</span>
-          <span>Aug</span>
-          <span>Sep</span>
-          <span>Oct</span>
-          <span>Nov</span>
-          <span>Dec</span>
-          <span>Jan</span>
-          <span>Feb</span>
-          <span>Mar</span>
         </div>
       </CardContent>
     </Card>
@@ -94,11 +89,7 @@ const PortfolioSummary: React.FC = () => {
 
 const PeriodButton = ({ label, active = false }) => (
   <button
-    className={`px-2 py-1 text-xs rounded-md ${
-      active 
-        ? 'bg-purple-700 text-white' 
-        : 'text-gray-400 hover:bg-gray-800'
-    }`}
+    className={`period-button ${active ? 'period-button-active' : 'period-button-inactive'}`}
   >
     {label}
   </button>

@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useStockHistory } from '@/hooks/useStockData';
 import PeriodSelector from './charts/PeriodSelector';
 import LightweightStockChart from './charts/LightweightStockChart';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 interface StockChartProps {
   symbol: string;
@@ -81,7 +81,7 @@ const StockChart: React.FC<StockChartProps> = ({
 
   if (isLoading) {
     return (
-      <Card className="bg-[#1A1A1A] border-none">
+      <Card className="bg-[#1A1A1A]/80 backdrop-blur-md border border-gray-800">
         <CardContent className="p-4">
           <div className="flex justify-between items-start mb-3">
             <div>
@@ -105,7 +105,7 @@ const StockChart: React.FC<StockChartProps> = ({
 
   if (error) {
     return (
-      <Card className="bg-[#1A1A1A] border-none">
+      <Card className="bg-[#1A1A1A]/80 backdrop-blur-md border border-gray-800">
         <CardContent className="p-4">
           <div className="flex justify-between items-start mb-3">
             <div>
@@ -128,7 +128,7 @@ const StockChart: React.FC<StockChartProps> = ({
   }
 
   return (
-    <Card className="bg-[#1A1A1A] border-none">
+    <Card className="bg-[#1A1A1A]/80 backdrop-blur-md border border-gray-800">
       <CardContent className="p-4">
         <div className="flex justify-between items-start mb-3">
           <div>
@@ -152,6 +152,7 @@ const StockChart: React.FC<StockChartProps> = ({
           {chartData.length > 0 ? (
             <LightweightStockChart
               data={chartData}
+              height={300}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-gray-400">

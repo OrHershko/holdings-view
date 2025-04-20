@@ -1,7 +1,7 @@
 
 /* Common UI elements */
 .glass-card {
-  @apply bg-black bg-opacity-25 backdrop-blur-lg border border-white border-opacity-10 rounded-xl;
+  @apply bg-black bg-opacity-30 backdrop-blur-lg border border-white border-opacity-10 rounded-xl;
 }
 
 .hover-scale {
@@ -16,4 +16,34 @@
 /* Focus visible outline */
 :focus-visible {
   @apply outline-none ring-2 ring-primary ring-opacity-50;
+}
+
+/* Button styles */
+.primary-button {
+  @apply bg-purple-700 hover:bg-purple-800 text-white px-4 py-2 rounded-full transition-colors;
+}
+
+/* Card styles */
+.fierce-card {
+  @apply bg-[#1A1A1A] bg-opacity-80 backdrop-blur-md border border-gray-800 rounded-xl;
+}
+
+/* Gradient styles */
+.purple-gradient {
+  @apply bg-gradient-to-r from-purple-700 to-indigo-600;
+}
+
+/* Link styles */
+.nav-link {
+  @apply flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800 transition-colors;
+}
+
+.nav-link.active {
+  @apply bg-purple-700/20 text-white;
+}
+
+/* Progress circle */
+.progress-circle {
+  @apply relative rounded-full;
+  background: conic-gradient(#8b5cf6 var(--value), #333 var(--value));
 }
