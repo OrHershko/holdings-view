@@ -74,35 +74,6 @@ export default {
 					'light-gray': '#F2F2F7',
 					'background': '#FFFFFF',
 					'card': '#F9F9F9'
-				},
-				// Design system colors
-				purple: {
-					'50': '#f5f3ff',
-					'100': '#ede9fe',
-					'200': '#ddd6fe',
-					'300': '#c4b5fd',
-					'400': '#a78bfa',
-					'500': '#8b5cf6',
-					'600': '#7c3aed',
-					'700': '#6d28d9',
-					'800': '#5b21b6',
-					'900': '#4c1d95',
-					'950': '#2e1065',
-				},
-				// Fierce app colors
-				fierce: {
-					'primary': '#8b5cf6',
-					'secondary': '#6366F1',
-					'success': '#10B981',
-					'warning': '#F59E0B',
-					'danger': '#EF4444',
-					'info': '#3B82F6',
-					'card': 'rgba(26, 26, 26, 0.8)',
-					'card-border': 'rgba(32, 32, 32, 0.8)',
-					'background': '#121212',
-					'foreground': '#FFFFFF',
-					'muted': '#8E8E93',
-					'sidebar': 'rgba(26, 26, 26, 0.8)',
 				}
 			},
 			borderRadius: {
@@ -146,13 +117,7 @@ export default {
 				'sf': ['-apple-system', 'BlinkMacSystemFont', 'San Francisco', 'Helvetica Neue', 'Arial', 'sans-serif']
 			},
 			boxShadow: {
-				'ios': '0 2px 10px rgba(0, 0, 0, 0.05)',
-				'fierce': '0 4px 20px rgba(0, 0, 0, 0.25)'
-			},
-			backgroundImage: {
-				'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-				'gradient-card': 'linear-gradient(to bottom right, rgba(40, 40, 40, 0.8), rgba(20, 20, 20, 0.8))',
-				'gradient-purple': 'linear-gradient(to right, #6d28d9, #8b5cf6)',
+				'ios': '0 2px 10px rgba(0, 0, 0, 0.05)'
 			}
 		}
 	},

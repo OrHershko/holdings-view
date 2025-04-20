@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import ReactApexChart from 'react-apexcharts';
@@ -21,7 +20,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
 }) => {
   const [chartError, setChartError] = useState<string | null>(null);
   
-  // Track user's zoom state
+  // ⭐ Track user's zoom state
   const zoomState = useRef<{ min: number; max: number } | null>(null);
   const chartInstance = useRef<any>(null);
   const userZooming = useRef(false);
@@ -51,18 +50,18 @@ const PriceChart: React.FC<PriceChartProps> = ({
 
       // Optional SMA data
       const sma20Data = data
-        .filter(item => item.sma20 != null)
-        .map(item => ({
-          x: new Date(item.date),
-          y: parseFloat(item.sma20)
-        }));
+  .filter(item => item.sma20 != null)
+  .map(item => ({
+    x: new Date(item.date).getTime(),   // טיים־סטמפ עדיף
+    y: parseFloat(item.sma20)          // מספר בודד, לא מערך
+  }));
 
-      const sma50Data = data
-        .filter(item => item.sma50 != null)
-        .map(item => ({
-          x: new Date(item.date),
-          y: parseFloat(item.sma50)
-        }));
+  const sma50Data = data
+  .filter(item => item.sma50 != null)
+  .map(item => ({
+    x: new Date(item.date).getTime(),   // טיים־סטמפ עדיף
+    y: parseFloat(item.sma50)          // מספר בודד, לא מערך
+  }));
       
       // Customize label formats based on timeframe without setting min/max
       const getTimeframeOptions = () => {
@@ -142,7 +141,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
                   onZoom(startDate, endDate);
                 }
               }
-              // Update zoom state
+              // ⭐ Update zoom state
               zoomState.current = xaxis;
             }
           },
@@ -251,7 +250,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
         series.push({
           name: 'SMA 20',
           type: 'line',
-          data: sma20Data as any
+          data: sma20Data
         });
       }
       
@@ -259,7 +258,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
         series.push({
           name: 'SMA 50',
           type: 'line',
-          data: sma50Data as any
+          data: sma50Data
         });
       }
       return { chartOptions: options, chartSeries: series };
@@ -302,6 +301,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
         </p>
       </div>
       <div style={{ height: '450px', width: '100%' }}>
+        {/* No suspense or lazy loading - just render the chart directly */}
         <ReactApexChart 
           ref={chartInstance} 
           options={chartOptions} 
@@ -310,6 +310,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
           height={450} 
         />
       </div>
+      {/* Removed manual zoom buttons which weren't needed */}
     </Card>
   );
 };

@@ -1,49 +1,42 @@
-
-/* Common UI elements */
-.glass-card {
-  @apply bg-black bg-opacity-30 backdrop-blur-lg border border-white border-opacity-10 rounded-xl;
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
 }
 
-.hover-scale {
-  @apply transition-transform duration-200 hover:scale-105;
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
 }
 
-/* Chart styles */
-.chart-container {
-  @apply rounded-xl overflow-hidden;
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-/* Focus visible outline */
-:focus-visible {
-  @apply outline-none ring-2 ring-primary ring-opacity-50;
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
 }
 
-/* Button styles */
-.primary-button {
-  @apply bg-purple-700 hover:bg-purple-800 text-white px-4 py-2 rounded-full transition-colors;
+.card {
+  padding: 2em;
 }
 
-/* Card styles */
-.fierce-card {
-  @apply bg-[#1A1A1A] bg-opacity-80 backdrop-blur-md border border-gray-800 rounded-xl;
-}
-
-/* Gradient styles */
-.purple-gradient {
-  @apply bg-gradient-to-r from-purple-700 to-indigo-600;
-}
-
-/* Link styles */
-.nav-link {
-  @apply flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800 transition-colors;
-}
-
-.nav-link.active {
-  @apply bg-purple-700/20 text-white;
-}
-
-/* Progress circle */
-.progress-circle {
-  @apply relative rounded-full;
-  background: conic-gradient(#8b5cf6 var(--value), #333 var(--value));
+.read-the-docs {
+  color: #888;
 }
