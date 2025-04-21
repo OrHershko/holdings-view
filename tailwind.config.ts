@@ -117,7 +117,6 @@ export default {
 				'sf': ['-apple-system', 'BlinkMacSystemFont', 'San Francisco', 'Helvetica Neue', 'Arial', 'sans-serif']
 			},
 			boxShadow: {
-				'ios': '0 2px 10px rgba(0, 0, 0, 0.05)'
 			}
 		}
 	},

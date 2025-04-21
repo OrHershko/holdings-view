@@ -12,6 +12,8 @@ interface StockChartProps {
   currentPrice: number;
   change: number;
   changePercent: number;
+  marketCap: number;
+  volume: number;
 }
 
 // Define allowed periods for UI selection
@@ -71,7 +73,9 @@ const StockChart: React.FC<StockChartProps> = ({
   stockName,
   currentPrice,
   change,
-  changePercent
+  changePercent,
+  marketCap,
+  volume
 }) => {
   const [selectedPeriod, setSelectedPeriod] = useState<string>('1y');
   const [selectedInterval, setSelectedInterval] = useState<string>('1d');
@@ -115,6 +119,9 @@ const StockChart: React.FC<StockChartProps> = ({
       volume: data.volume?.[index] ?? 0,
       sma20: data.sma20?.[index] ?? null,
       sma50: data.sma50?.[index] ?? null,
+      sma100: data.sma100?.[index] ?? null,
+      sma150: data.sma150?.[index] ?? null,
+      sma200: data.sma200?.[index] ?? null,
       rsi: data.rsi?.[index] ?? null,
       high: data.high?.[index] ?? null,
       low: data.low?.[index] ?? null,
@@ -211,6 +218,8 @@ const StockChart: React.FC<StockChartProps> = ({
           <div>
             <h2 className="text-lg font-medium text-white">{symbol}</h2>
             <p className="text-sm text-gray-400">{stockName}</p>
+            <p className="text-xs text-gray-500">Market Cap: ${marketCap.toLocaleString()}</p>
+            <p className="text-xs text-gray-500">Daily Volume: {volume.toLocaleString()}</p>
           </div>
           <div className="text-right">
             <div className="text-xl font-bold text-white">${currentPrice.toFixed(2)}</div>

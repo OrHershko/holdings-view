@@ -39,8 +39,19 @@ export interface StockHistoryData {
   close?: number[];
   sma20?: number[];
   sma50?: number[];
+  sma100?: number[];
+  sma150?: number[];
+  sma200?: number[];
   rsi?: number[];
   macd?: number[];
   signal?: number[];
   histogram?: number[];
 }
+
+export interface NewsArticle {
+  title: string;
+  link: string;
+  source: string;
+  published: string;
+}
+

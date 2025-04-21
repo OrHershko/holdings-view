@@ -10,6 +10,7 @@ import {
   CandlestickSeries,
   HistogramSeries,
   LineSeries,
+  LineStyle,
 } from 'lightweight-charts';
 
 interface Props {
@@ -21,6 +22,7 @@ const toSeriesData = (raw: any[]) => {
   const candles: CandlestickData[] = [];
   const volume: HistogramData[] = [];
   const rsi: LineData[] = [];
+  const sma150: LineData[] = []; // Add SMA 150 array
 
   raw.forEach((p) => {
     const time = (new Date(p.date).getTime() / 1000) as UTCTimestamp;
@@ -40,9 +42,14 @@ const toSeriesData = (raw: any[]) => {
     if (p.rsi != null) {
       rsi.push({ time, value: p.rsi });
     }
+    
+    // Extract SMA 150 if available
+    if (p.sma150 != null) {
+      sma150.push({ time, value: p.sma150 });
+    }
   });
 
-  return { candles, volume, rsi };
+  return { candles, volume, rsi, sma150 };
 };
 
 /* ---------- component ---------- */
@@ -52,6 +59,7 @@ const LightweightStockChart: React.FC<Props> = ({ data }) => {
   const candleRef = useRef<ISeriesApi<'Candlestick'>>();
   const volumeRef = useRef<ISeriesApi<'Histogram'>>();
   const rsiRef = useRef<ISeriesApi<'Line'>>();
+  const sma150Ref = useRef<ISeriesApi<'Line'>>(); // Add SMA 150 ref
 
   /* build / update */
   useEffect(() => {
@@ -92,15 +100,23 @@ const LightweightStockChart: React.FC<Props> = ({ data }) => {
         priceScaleId: 'rsi',
       });
       chartRef.current.priceScale('rsi').applyOptions({ scaleMargins: { top: 0.7, bottom: 0.1 } });
-      rsiRef.current.createPriceLine({ price: 70, color: '#EF4444', lineStyle: 2, lineWidth: 1 });
-      rsiRef.current.createPriceLine({ price: 30, color: '#34D399', lineStyle: 2, lineWidth: 1 });
+      rsiRef.current.createPriceLine({ price: 70, color: '#EF4444', lineStyle: LineStyle.Dashed, lineWidth: 1 });
+      rsiRef.current.createPriceLine({ price: 30, color: '#34D399', lineStyle: LineStyle.Dashed, lineWidth: 1 });
+      
+      // Add SMA 150 series
+      sma150Ref.current = chartRef.current.addSeries(LineSeries, {
+        color: '#F59E0B', // Amber color for SMA 150
+        lineWidth: 2,
+        title: 'SMA 150', // Add title for the series
+      });
     }
 
     /* push data */
-    const { candles, volume, rsi } = toSeriesData(data);
+    const { candles, volume, rsi, sma150 } = toSeriesData(data);
     candleRef.current!.setData(candles);
     volumeRef.current!.setData(volume);
     rsiRef.current!.setData(rsi);
+    sma150Ref.current!.setData(sma150); // Set SMA 150 data
     chartRef.current.timeScale().fitContent();
 
     /* resize */
