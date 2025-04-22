@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { TrendingUp, TrendingDown, Pencil } from 'lucide-react';
+import { TrendingUp, TrendingDown, Pencil, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -52,6 +52,7 @@ const StockCard: React.FC<StockCardProps> = ({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : 'auto',
   };
 
   const handleEditClick = (e: React.MouseEvent) => {
@@ -61,9 +62,17 @@ const StockCard: React.FC<StockCardProps> = ({
   
   return (
     <div ref={setNodeRef} style={style}>
-      <Card className="ios-card hover:shadow-md transition-shadow duration-200">
-        <div {...attributes} {...listeners} className="cursor-grab">
-          <CardContent className="p-4" onClick={onClick}>
+      <Card className="ios-card hover:shadow-md transition-shadow duration-200 flex items-stretch">
+        <div 
+          {...attributes} 
+          {...listeners} 
+          className="p-2 flex items-center justify-center cursor-grab text-ios-gray hover:bg-gray-700/50 rounded-l-lg"
+        >
+          <GripVertical className="h-5 w-5" />
+        </div>
+
+        <div className="flex-grow" onClick={onClick}>
+          <CardContent className="p-4 pt-3 pb-3">
             <div className="flex justify-between items-start">
               <div>
                 <h3 className="font-medium">{symbol}</h3>
@@ -78,7 +87,7 @@ const StockCard: React.FC<StockCardProps> = ({
               </div>
             </div>
             
-            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
               <div>
                 <p className="text-ios-gray">Shares</p>
                 <p>{shares}</p>
@@ -100,12 +109,13 @@ const StockCard: React.FC<StockCardProps> = ({
             </div>
           </CardContent>
         </div>
-        <div className="px-4 pb-4">
+
+        <div className="px-3 pb-3 flex items-end">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleEditClick}
-            className="text-ios-gray hover:text-white w-full"
+            className="text-ios-gray hover:text-white w-full mt-auto"
           >
             <Pencil className="h-4 w-4 mr-1" />
             Edit
