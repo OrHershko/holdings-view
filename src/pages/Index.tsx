@@ -133,6 +133,20 @@ const Index = () => {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left column - Portfolio overview */}
                 <div className="lg:col-span-2">
+                  <PortfolioSummary />
+
+                  {/* Selected Stock Chart */}
+                  {selectedStock && stockData && (
+                    <StockChart 
+                      symbol={stockData.symbol}
+                      stockName={stockData.name}
+                      currentPrice={stockData.price}
+                      change={stockData.change}
+                      changePercent={stockData.changePercent}
+                      marketCap={stockData.marketCap}
+                      volume={stockData.volume}
+                    />
+                  )}
 
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-lg font-medium ml-1 text-white">Your Holdings</h2>
@@ -177,12 +191,7 @@ const Index = () => {
                       ))}
                     </SortableContext>
                   </DndContext>
-                </div>                  
-                {/* Right column - Auxiliary data */}
-                <div className="lg:col-span-1">
-                  <MarketOverview portfolio={portfolioData?.holdings.map((holding) => holding.symbol) || []} />
-                  <WatchlistCard onSelectStock={handleSelectStock} />
-                </div>
+                
               </div>
             </main>
           </div>
