@@ -31,6 +31,10 @@ if not DATABASE_URL:
         "is set in your .env.local file or Vercel environment variables."
     )
 
+# Ensure URL uses postgresql+psycopg2:// instead of postgres:// or postgresql://
+if DATABASE_URL.startswith(('postgres://', 'postgresql://')):
+    DATABASE_URL = 'postgresql+psycopg2://' + DATABASE_URL.split('://', 1)[1]
+
 print(f"Initializing database connection...")  # Debug log
 
 try:
