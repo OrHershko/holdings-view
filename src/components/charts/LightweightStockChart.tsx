@@ -101,9 +101,17 @@ const LightweightStockChart: React.FC<Props> = ({ data }) => {
   useEffect(() => {
     if (!divRef.current) return;
     
+    // Log received data prop
+    console.log("LightweightStockChart: Received data prop:", data);
+
     // Validate data
     if (!Array.isArray(data) || data.length === 0) {
       console.warn('No valid chart data provided:', data);
+      // Clear chart if data becomes invalid/empty
+      candleRef.current?.setData([]);
+      volumeRef.current?.setData([]);
+      rsiRef.current?.setData([]);
+      sma150Ref.current?.setData([]);
       return;
     }
 
@@ -157,24 +165,40 @@ const LightweightStockChart: React.FC<Props> = ({ data }) => {
       /* push data */
       const { candles, volume, rsi, sma150 } = toSeriesData(data);
       
+      // Log data before setting it on the chart series
+      console.log("LightweightStockChart: Setting candle data:", candles);
+      console.log("LightweightStockChart: Setting volume data:", volume);
+      console.log("LightweightStockChart: Setting rsi data:", rsi);
+      console.log("LightweightStockChart: Setting sma150 data:", sma150);
+
       // Only set data if we have valid arrays with at least one element
-      if (candles.length > 0) {
-        candleRef.current!.setData(candles);
+      if (candleRef.current && candles.length > 0) {
+        candleRef.current.setData(candles);
+      } else if (candleRef.current) {
+        candleRef.current.setData([]); // Clear if empty
       }
       
-      if (volume.length > 0) {
-        volumeRef.current!.setData(volume);
+      if (volumeRef.current && volume.length > 0) {
+        volumeRef.current.setData(volume);
+      } else if (volumeRef.current) {
+        volumeRef.current.setData([]); // Clear if empty
       }
       
-      if (rsi.length > 0) {
-        rsiRef.current!.setData(rsi);
+      if (rsiRef.current && rsi.length > 0) {
+        rsiRef.current.setData(rsi);
+      } else if (rsiRef.current) {
+        rsiRef.current.setData([]); // Clear if empty
       }
       
-      if (sma150.length > 0) {
-        sma150Ref.current!.setData(sma150);
+      if (sma150Ref.current && sma150.length > 0) {
+        sma150Ref.current.setData(sma150);
+      } else if (sma150Ref.current) {
+        sma150Ref.current.setData([]); // Clear if empty
       }
       
-      chartRef.current!.timeScale().fitContent();
+      if (chartRef.current) {
+        chartRef.current.timeScale().fitContent();
+      }
     } catch (error) {
       console.error('Error setting chart data:', error);
     }

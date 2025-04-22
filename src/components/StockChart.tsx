@@ -271,6 +271,8 @@ const StockChart: React.FC<StockChartProps> = ({
           </div>
         </div>
         <div className="mb-4">
+          {/* Log chartData before passing to child */}
+          {console.log("StockChart: Passing chartData to LightweightStockChart:", chartData)}
           <LightweightStockChart
             data={chartData}
           />
