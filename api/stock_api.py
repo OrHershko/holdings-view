@@ -552,7 +552,13 @@ def search_stocks_endpoint(query: str = Query(..., min_length=1)):
 def get_stock_news(symbol: str):
     try:
         stock = yf.Ticker(symbol)
-        news = stock.news
+        
+        # Wrap the news access in a try block since it's where the JSONDecodeError happens
+        try:
+            news = stock.news
+        except Exception as news_error:
+            logger.warning(f"Failed to fetch news data for {symbol}: {news_error}")
+            return []  # Return empty list on error
 
         if not news:
              logger.warning(f"No news found for {symbol} from yfinance.")
@@ -560,47 +566,53 @@ def get_stock_news(symbol: str):
 
         articles = []
         for item in news:
-            content = item.get("content") # Get the nested content dictionary
-            if not content:
-                logger.warning(f"News item for {symbol} missing 'content' dictionary: {item}")
-                continue # Skip this item if content is missing
+            try:
+                content = item.get("content") # Get the nested content dictionary
+                if not content:
+                    logger.warning(f"News item for {symbol} missing 'content' dictionary: {item}")
+                    continue # Skip this item if content is missing
 
-            # Extract data from the 'content' dictionary
-            title = content.get("title")
-            
-            # Get the link - check canonicalUrl first, then clickThroughUrl
-            link_obj = content.get("canonicalUrl") or content.get("clickThroughUrl")
-            link = link_obj.get("url") if link_obj else None
+                # Extract data from the 'content' dictionary
+                title = content.get("title")
+                
+                # Get the link - check canonicalUrl first, then clickThroughUrl
+                link_obj = content.get("canonicalUrl") or content.get("clickThroughUrl")
+                link = link_obj.get("url") if link_obj else None
 
-            # Get the source from the provider dictionary
-            provider = content.get("provider")
-            source = provider.get("displayName") if provider else None
-            
-            # Get the published date (already a string)
-            publish_time_str = content.get("pubDate") 
+                # Get the source from the provider dictionary
+                provider = content.get("provider")
+                source = provider.get("displayName") if provider else None
+                
+                # Get the published date (already a string)
+                publish_time_str = content.get("pubDate") 
 
-            published_iso = None
-            if publish_time_str:
-                try:
-                    # Parse the existing date string
-                    ts = pd.to_datetime(publish_time_str, errors='coerce')
-                    if pd.notna(ts):
-                         published_iso = ts.isoformat()
-                    else:
-                         logger.warning(f"Could not parse pubDate string '{publish_time_str}' for {symbol} news item.")
-                except Exception as dt_error: # Catch broader errors during parsing
-                    logger.warning(f"Error parsing pubDate string '{publish_time_str}' for {symbol}: {dt_error}")
+                published_iso = None
+                if publish_time_str:
+                    try:
+                        # Parse the existing date string
+                        ts = pd.to_datetime(publish_time_str, errors='coerce')
+                        if pd.notna(ts):
+                             published_iso = ts.isoformat()
+                        else:
+                             logger.warning(f"Could not parse pubDate string '{publish_time_str}' for {symbol} news item.")
+                    except Exception as dt_error: # Catch broader errors during parsing
+                        logger.warning(f"Error parsing pubDate string '{publish_time_str}' for {symbol}: {dt_error}")
 
-            articles.append({
-                "title": title if title else None,
-                "link": link if link else None,
-                "source": source if source else None,
-                "published": published_iso,
-            })
+                articles.append({
+                    "title": title if title else "No title available",
+                    "link": link if link else "#",
+                    "source": source if source else "Unknown source",
+                    "published": published_iso if published_iso else "",
+                })
+            except Exception as item_error:
+                logger.warning(f"Error processing news item for {symbol}: {item_error}")
+                # Continue processing other items
+        
         return articles
     except Exception as e:
         logger.exception(f"Error fetching news for {symbol}: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error fetching news.")
+        # Return empty list instead of raising an exception
+        return []
 
 
 

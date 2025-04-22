@@ -32,80 +32,136 @@ export const fetchStockHistory = async (
   // Calculate a longer period for data fetching to accommodate indicators
   const fetchPeriod = getExtendedPeriod(period, 200); // Add enough for SMA 200
 
-  // Use the extended period for fetching data
-  const response = await fetch(`${API_BASE_URL}/history/${symbol}?period=${fetchPeriod}&interval=${interval}`);
-  if (!response.ok) {
-    const errorBody = await response.text();
-    console.error("API Error Response:", errorBody);
-    throw new Error(`Failed to fetch stock history: ${response.statusText}`);
-  }
-  const rawData = await response.json(); // Rename to rawData
-
-  if (!rawData.history || rawData.history.length === 0) {
-    // Handle empty history case
-    return { dates: [], prices: [], volume: [], open: [], close: [], high: [], low: [] };
-  }
-
-  // --- Calculate indicators using the FULL fetched data ---
-  const allCloseValues = rawData.history.map((h: any) => h.Close);
-  const allDates = rawData.history.map((h: any) => h.Date); // Keep all dates for reference if needed
-  const totalFetchedPoints = rawData.history.length;
-
-  const smaPeriods = [20, 50, 100, 150, 200];
-  const smaResultsFull: Record<string, (number | null)[]> = {};
-  smaPeriods.forEach(p => {
-    const sma = SMA.calculate({ period: p, values: allCloseValues });
-    // Pad the SMA results to match the length of allCloseValues
-    smaResultsFull[`sma${p}`] = Array(p - 1).fill(null).concat(sma);
-    // Ensure it doesn't exceed the total length (edge case)
-    if (smaResultsFull[`sma${p}`].length > totalFetchedPoints) {
-       smaResultsFull[`sma${p}`] = smaResultsFull[`sma${p}`].slice(0, totalFetchedPoints);
+  try {
+    // Use the extended period for fetching data
+    const response = await fetch(`${API_BASE_URL}/history/${symbol}?period=${fetchPeriod}&interval=${interval}`);
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error("API Error Response:", errorBody);
+      throw new Error(`Failed to fetch stock history: ${response.statusText}`);
     }
-     // Ensure it's not shorter than total length (pad end if necessary, though unlikely with SMA)
-    while (smaResultsFull[`sma${p}`].length < totalFetchedPoints) {
-        smaResultsFull[`sma${p}`].push(null); // Or handle differently if needed
+    const rawData = await response.json(); // Rename to rawData
+
+    // Validate the response data
+    if (!rawData || !rawData.history || !Array.isArray(rawData.history) || rawData.history.length === 0) {
+      console.warn(`Empty or invalid history data received for ${symbol}`);
+      // Return empty arrays for all fields
+      return { 
+        dates: [], prices: [], volume: [], open: [], close: [], high: [], low: [],
+        sma20: [], sma50: [], sma100: [], sma150: [], sma200: [], rsi: []
+      };
     }
-  });
 
-  const rsiResult = RSI.calculate({ period: 14, values: allCloseValues });
-  // Pad RSI results
-  const rsiFull = Array(14 - 1).fill(null).concat(rsiResult);
-   if (rsiFull.length > totalFetchedPoints) {
-       rsiFull.slice(0, totalFetchedPoints);
-   }
-   while (rsiFull.length < totalFetchedPoints) {
-        rsiFull.push(null);
-   }
+    // --- Calculate indicators using the FULL fetched data ---
+    const allCloseValues = rawData.history.map((h: any) => {
+      // Ensure each value is a valid number
+      const close = typeof h.Close === 'number' ? h.Close : parseFloat(h.Close);
+      return isNaN(close) ? null : close;
+    }).filter((v: any) => v !== null); // Remove null values
 
+    const allDates = rawData.history.map((h: any) => h.Date); // Keep all dates for reference if needed
+    const totalFetchedPoints = rawData.history.length;
 
-  // --- Determine how many points to keep for the ORIGINAL period ---
-  const pointsToShow = estimateDataPointsForPeriod(period, interval, totalFetchedPoints);
-  const startIndex = Math.max(0, totalFetchedPoints - pointsToShow);
+    // Safety check - if we don't have valid close values, return empty data
+    if (allCloseValues.length === 0) {
+      console.warn(`No valid close values found for ${symbol}`);
+      return { 
+        dates: [], prices: [], volume: [], open: [], close: [], high: [], low: [],
+        sma20: [], sma50: [], sma100: [], sma150: [], sma200: [], rsi: []
+      };
+    }
 
-  // --- Slice the history and indicators to the original period ---
-  const finalHistory = rawData.history.slice(startIndex);
+    // Safely calculate SMA with error handling
+    const calculateSMA = (period: number, values: number[]) => {
+      try {
+        const sma = SMA.calculate({ period, values });
+        // Pad with nulls at the beginning to match the length of the input array
+        return Array(period - 1).fill(null).concat(sma);
+      } catch (error) {
+        console.error(`Error calculating SMA${period}:`, error);
+        return Array(values.length).fill(null);
+      }
+    };
 
-  // --- Transform final sliced data ---
-  return {
-    dates: finalHistory.map((h: any) => h.Date),
-    prices: finalHistory.map((h: any) => h.Close),
-    volume: finalHistory.map((h: any) => h.Volume ?? 0),
-    open: finalHistory.map((h: any) => h.Open ?? null),
-    close: finalHistory.map((h: any) => h.Close ?? null),
-    high: finalHistory.map((h: any) => h.High ?? null),
-    low: finalHistory.map((h: any) => h.Low ?? null),
-    // Slice the indicator results as well
-    sma20: smaResultsFull.sma20.slice(startIndex),
-    sma50: smaResultsFull.sma50.slice(startIndex),
-    sma100: smaResultsFull.sma100.slice(startIndex),
-    sma150: smaResultsFull.sma150.slice(startIndex),
-    sma200: smaResultsFull.sma200.slice(startIndex),
-    rsi: rsiFull.slice(startIndex),
-    // Assuming MACD indicators were also calculated on full data and need slicing
-    // macd: macdFull?.macd?.slice(startIndex),
-    // signal: macdFull?.signal?.slice(startIndex),
-    // histogram: macdFull?.histogram?.slice(startIndex),
-  };
+    // Calculate SMAs safely
+    const smaPeriods = [20, 50, 100, 150, 200];
+    const smaResultsFull: Record<string, (number | null)[]> = {};
+    
+    smaPeriods.forEach(p => {
+      if (allCloseValues.length >= p) {
+        smaResultsFull[`sma${p}`] = calculateSMA(p, allCloseValues);
+      } else {
+        // Not enough data for this SMA period
+        smaResultsFull[`sma${p}`] = Array(totalFetchedPoints).fill(null);
+      }
+      
+      // Ensure array length matches total points
+      while (smaResultsFull[`sma${p}`].length < totalFetchedPoints) {
+        smaResultsFull[`sma${p}`].push(null);
+      }
+      if (smaResultsFull[`sma${p}`].length > totalFetchedPoints) {
+        smaResultsFull[`sma${p}`] = smaResultsFull[`sma${p}`].slice(0, totalFetchedPoints);
+      }
+    });
+
+    // Safely calculate RSI with error handling
+    let rsiFull: (number | null)[] = Array(totalFetchedPoints).fill(null);
+    try {
+      if (allCloseValues.length >= 14) {
+        const rsiResult = RSI.calculate({ period: 14, values: allCloseValues });
+        // Pad RSI results
+        rsiFull = Array(14 - 1).fill(null).concat(rsiResult);
+        // Ensure array length matches
+        if (rsiFull.length > totalFetchedPoints) {
+          rsiFull = rsiFull.slice(0, totalFetchedPoints);
+        }
+        while (rsiFull.length < totalFetchedPoints) {
+          rsiFull.push(null);
+        }
+      }
+    } catch (error) {
+      console.error("Error calculating RSI:", error);
+    }
+
+    // --- Determine how many points to keep for the ORIGINAL period ---
+    const pointsToShow = estimateDataPointsForPeriod(period, interval, totalFetchedPoints);
+    const startIndex = Math.max(0, totalFetchedPoints - pointsToShow);
+
+    // --- Slice the history and indicators to the original period ---
+    const finalHistory = rawData.history.slice(startIndex);
+
+    // Safely extract numeric values with null fallbacks
+    const safeNumber = (value: any): number | null => {
+      if (value === undefined || value === null) return null;
+      const num = typeof value === 'number' ? value : parseFloat(value);
+      return isNaN(num) ? null : num;
+    };
+
+    // --- Transform final sliced data ---
+    return {
+      dates: finalHistory.map((h: any) => h.Date || null),
+      prices: finalHistory.map((h: any) => safeNumber(h.Close)),
+      volume: finalHistory.map((h: any) => safeNumber(h.Volume)),
+      open: finalHistory.map((h: any) => safeNumber(h.Open)),
+      close: finalHistory.map((h: any) => safeNumber(h.Close)),
+      high: finalHistory.map((h: any) => safeNumber(h.High)),
+      low: finalHistory.map((h: any) => safeNumber(h.Low)),
+      // Slice the indicator results as well
+      sma20: smaResultsFull.sma20.slice(startIndex),
+      sma50: smaResultsFull.sma50.slice(startIndex),
+      sma100: smaResultsFull.sma100.slice(startIndex),
+      sma150: smaResultsFull.sma150.slice(startIndex),
+      sma200: smaResultsFull.sma200.slice(startIndex),
+      rsi: rsiFull.slice(startIndex),
+    };
+  } catch (error) {
+    console.error(`Error in fetchStockHistory for ${symbol}:`, error);
+    // Return empty data on error
+    return { 
+      dates: [], prices: [], volume: [], open: [], close: [], high: [], low: [],
+      sma20: [], sma50: [], sma100: [], sma150: [], sma200: [], rsi: []
+    };
+  }
 };
 
 // --- Helper Functions ---
@@ -269,7 +325,38 @@ export const searchStocks = async (query: string): Promise<StockData[]> => {
 };
 
 export const fetchNews = async (symbol: string): Promise<NewsArticle[]> => {
-  const response = await fetch(`${API_BASE_URL}/news/${symbol}`);
-  if (!response.ok) throw new Error('Failed to fetch news');
-  return await response.json();
+  try {
+    const response = await fetch(`${API_BASE_URL}/news/${symbol}`);
+    
+    // Check if response is ok
+    if (!response.ok) {
+      console.warn(`Failed to fetch news for ${symbol}: ${response.status} ${response.statusText}`);
+      return [];
+    }
+    
+    // Try to parse the JSON, but handle parse errors gracefully
+    try {
+      const data = await response.json();
+      
+      // Validate the response data is an array
+      if (!Array.isArray(data)) {
+        console.warn(`Invalid news data for ${symbol}: expected array but got ${typeof data}`);
+        return [];
+      }
+      
+      // Map and validate each news article
+      return data.map((item): NewsArticle => ({
+        title: item.title || "No title available",
+        link: item.link || "#",
+        source: item.source || "Unknown source",
+        published: item.published || ""
+      }));
+    } catch (parseError) {
+      console.error(`Error parsing news data for ${symbol}:`, parseError);
+      return [];
+    }
+  } catch (error) {
+    console.error(`Network error fetching news for ${symbol}:`, error);
+    return [];
+  }
 };
