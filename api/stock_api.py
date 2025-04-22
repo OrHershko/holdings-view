@@ -44,7 +44,8 @@ try:
         pool_pre_ping=True,       # Enable connection health checks
         connect_args={
             "sslmode": "require"  # Required for Neon
-        }
+        },
+        drivername='postgresql+psycopg2'  # Explicitly specify the dialect
     )
     
     # Test the connection
