@@ -3,10 +3,18 @@ from functools import lru_cache
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Query, Body, Depends
 from pydantic import BaseModel
+import time
+
+# Import yfinance config first to set up cache
+from api import yf_config
 import yfinance as yf
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import os
+import random
+from requests.adapters import HTTPAdapter
+from requests.sessions import Session
+from urllib3.util.retry import Retry
 
 # --- Database Setup (SQLAlchemy) ---
 from sqlalchemy import create_engine, Column, String, Float
@@ -14,11 +22,10 @@ from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from sqlalchemy.exc import SQLAlchemyError
 from dotenv import load_dotenv
 
-import yfinance as yf
-import random
-from requests.adapters import HTTPAdapter
-from requests.sessions import Session
-from urllib3.util.retry import Retry
+# Set yfinance cache location to a writeable temporary directory
+tmp_dir = tempfile.gettempdir()
+yf.set_tz_cache_location(tmp_dir)
+print(f"Set yfinance cache location to: {tmp_dir}")
 
 WEBSHARE_PROXIES = [
     {'host': '38.153.152.244', 'port': '9594', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'},
@@ -35,51 +42,99 @@ WEBSHARE_PROXIES = [
 
 # Track current proxy index
 current_proxy_index = 0
+# Track proxies with too many 429 errors
+rate_limited_proxies = set()
+# Track last time we used each proxy
+proxy_last_used = {}
 
 def get_next_proxy_session():
     global current_proxy_index
     
-    # Cycle through proxies in sequence
-    proxy = WEBSHARE_PROXIES[current_proxy_index]
-    # Update index for next call
-    current_proxy_index = (current_proxy_index + 1) % len(WEBSHARE_PROXIES)
+    # Cycle through proxies in sequence, skipping rate-limited ones
+    attempts = 0
+    while attempts < len(WEBSHARE_PROXIES):
+        proxy = WEBSHARE_PROXIES[current_proxy_index]
+        current_proxy_index = (current_proxy_index + 1) % len(WEBSHARE_PROXIES)
+        attempts += 1
+        
+        host = proxy['host']
+        
+        # Skip if proxy is rate limited
+        if host in rate_limited_proxies:
+            continue
+            
+        # Check if proxy needs cooling off time (if used in the last 3 seconds)
+        current_time = time.time()
+        if host in proxy_last_used:
+            time_since_last_use = current_time - proxy_last_used[host]
+            if time_since_last_use < 3:  # 3 second cooling period
+                time.sleep(3 - time_since_last_use)  # Wait until cooling period is over
+        
+        # Mark this proxy as used now
+        proxy_last_used[host] = time.time()
+        
+        proxy_url = f"http://{proxy['username']}:{proxy['password']}@{proxy['host']}:{proxy['port']}"
+
+        session = Session()
+        session.proxies = {
+            "http": proxy_url,
+            "https": proxy_url,
+        }
+
+        # Add timeouts to prevent hanging connections
+        session.timeout = 10  # Flat 10 second timeout
+
+        # Configure retries with longer backoff for 429 errors
+        retries = Retry(
+            total=3, 
+            backoff_factor=2.0,  # Longer delay between retries
+            status_forcelist=[500, 502, 503, 504],  # Don't retry 429 - we'll handle them specially
+            respect_retry_after_header=True
+        )
+        adapter = HTTPAdapter(max_retries=retries)
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+
+        return session, host
     
-    proxy_url = f"http://{proxy['username']}:{proxy['password']}@{proxy['host']}:{proxy['port']}"
-
-    session = Session()
-    session.proxies = {
-        "http": proxy_url,
-        "https": proxy_url,
-    }
-
-    # Add timeouts to prevent hanging connections
-    session.timeout = 10  # Flat 10 second timeout
-
-    retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
-    adapter = HTTPAdapter(max_retries=retries)
-    session.mount("http://", adapter)
-    session.mount("https://", adapter)
-
-    return session
+    # If all proxies are rate limited, clear the list and try again
+    if len(rate_limited_proxies) == len(WEBSHARE_PROXIES):
+        logger.warning("All proxies are rate limited, clearing and retrying")
+        rate_limited_proxies.clear()
+        time.sleep(5)  # Wait 5 seconds before trying again
+        return get_next_proxy_session()
+    
+    # Should never reach here if we have at least one proxy
+    raise Exception("No proxies available")
 
 # Try all proxies before giving up
 def get_with_proxy_rotation(func, *args, **kwargs):
     # Try each proxy in sequence
-    for _ in range(len(WEBSHARE_PROXIES)):
+    for _ in range(len(WEBSHARE_PROXIES) * 2):  # Try twice through the proxy list
         try:
             # Get a new session with next proxy
-            session = get_next_proxy_session()
+            session, host = get_next_proxy_session()
             # Call the function with the session
             return func(*args, session=session, **kwargs)
         except Exception as e:
+            error_str = str(e).lower()
+            # Check if this is a rate limiting error
+            if "429" in error_str or "too many requests" in error_str:
+                # Mark this proxy as rate limited
+                rate_limited_proxies.add(host)
+                logger.warning(f"Proxy {host} rate limited. Marked for cooldown.")
+            
             logger.warning(f"Proxy error: {str(e)}. Trying next proxy.")
+            # Add a small delay before trying next proxy
+            time.sleep(1)
             continue
     
-    # If all proxies fail, raise the last error
+    # If all proxies fail, raise an HTTP exception
+    logger.error("All proxies failed or were rate limited")
     raise HTTPException(status_code=500, detail="All proxies failed")
 
 # Initialize with first proxy
-session = get_next_proxy_session()
+session, _ = get_next_proxy_session()
 
 # Load environment variables from .env and .env.local
 load_dotenv()  # Load .env first
