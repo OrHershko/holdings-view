@@ -4,7 +4,7 @@ import { SMA, RSI } from 'technicalindicators';
 // Read base URL from environment variable
 // For local dev, set VITE_API_BASE_URL=http://localhost:8000/api in a .env file
 // Vercel will use environment variables set in its dashboard
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://holdings-view.vercel.app/api';
 
 console.log(`Using API Base URL: ${API_BASE_URL}`); // Log for debugging
 
