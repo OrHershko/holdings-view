@@ -192,7 +192,11 @@ const Index = () => {
                     </SortableContext>
                   </DndContext>
                 </div>                  
-
+                {/* Right column - Auxiliary data */}
+                <div className="lg:col-span-1">
+                  <MarketOverview portfolio={portfolioData?.holdings.map((holding) => holding.symbol) || []} />
+                  <WatchlistCard onSelectStock={handleSelectStock} />
+                </div>
               </div>
             </main>
           </div>

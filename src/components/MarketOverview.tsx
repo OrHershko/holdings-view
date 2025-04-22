@@ -17,7 +17,8 @@ interface MarketOverviewProps {
 const ARTICLES_PER_PAGE = 5;
 
 const MarketOverview: React.FC<MarketOverviewProps> = ({ portfolio }) => {
-  const [news, setNews] = useState<NewsArticle[]>([]);
+  const [news, setNews] = useState<{ [symbol: string]: NewsArticle[] }>({});
+  const [allNews, setAllNews] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -29,8 +30,25 @@ const MarketOverview: React.FC<MarketOverviewProps> = ({ portfolio }) => {
         if (!response.ok) {
           throw new Error('Failed to fetch news');
         }
-        const data: NewsArticle[] = await response.json();
-        setNews(prev => ({ ...prev, [symbol]: data.slice(0, 5) })); // Limit to 5 articles per symbol
+        
+        let data;
+        try {
+          data = await response.json();
+          
+          // Validate that the response is an array
+          if (!Array.isArray(data)) {
+            console.error(`News data for ${symbol} is not an array:`, data);
+            data = []; // Set to empty array if not an array
+          }
+        } catch (parseError) {
+          console.error(`Error parsing news data for ${symbol}:`, parseError);
+          data = []; // Set to empty array on parse error
+        }
+        
+        // Safely slice the array (now we know it's definitely an array)
+        const limitedData = data.slice(0, 5); // Limit to 5 articles per symbol
+        
+        setNews(prev => ({ ...prev, [symbol]: limitedData }));
       } catch (error) {
         console.error(`Error fetching news for ${symbol}:`, error);
         setNews(prev => ({ ...prev, [symbol]: [] })); // Set empty array on error
@@ -38,18 +56,35 @@ const MarketOverview: React.FC<MarketOverviewProps> = ({ portfolio }) => {
     };
 
     if (portfolio.length > 0) {
-      portfolio.forEach(symbol => fetchNews(symbol));
+      setLoading(true);
+      Promise.all(portfolio.map(symbol => fetchNews(symbol)))
+        .finally(() => setLoading(false));
     } else {
-      setNews([]); // Clear news if portfolio is empty
+      setNews({});
       setLoading(false);
     }
   }, [portfolio]);
 
+  // Combine news from all symbols into a single array
+  useEffect(() => {
+    const combinedNews: NewsArticle[] = [];
+    Object.values(news).forEach(articles => {
+      if (Array.isArray(articles)) {
+        combinedNews.push(...articles);
+      }
+    });
+    setAllNews(combinedNews);
+  }, [news]);
+
   // Pagination calculations
-  const totalPages = Math.ceil(news.length / ARTICLES_PER_PAGE);
+  const totalPages = Math.ceil(allNews.length / ARTICLES_PER_PAGE);
   const startIndex = (currentPage - 1) * ARTICLES_PER_PAGE;
   const endIndex = startIndex + ARTICLES_PER_PAGE;
-  const currentNews = news.slice(startIndex, endIndex);
+  
+  // Make sure we're using the allNews array and double-check it's an array before slicing
+  const currentNews = Array.isArray(allNews) 
+    ? allNews.slice(startIndex, Math.min(endIndex, allNews.length)) 
+    : [];
 
   const handleNextPage = () => {
     if (currentPage < totalPages) {
@@ -85,29 +120,29 @@ const MarketOverview: React.FC<MarketOverviewProps> = ({ portfolio }) => {
           )}
         </div>
 
-        {news.length === 0 ? (
+        {(!allNews || allNews.length === 0) ? (
           <p className="text-sm text-ios-gray text-center py-4">No news available for your portfolio.</p>
         ) : (
           <>
             <div className="space-y-3 mb-4">
               {currentNews.map((article, index) => (
                 <div
-                  key={`${article.link}-${index}`} // Use a more unique key if possible
+                  key={`${article.link || 'no-link'}-${index}`} // Added fallback for key
                   className="flex justify-between items-start py-2 border-b border-ios-light-gray last:border-0"
                 >
                   <div>
                     <a
-                      href={article.link}
+                      href={article.link || '#'}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="font-medium text-ios-blue hover:underline text-sm" // Adjusted text size
                     >
-                      {article.title}
+                      {article.title || 'No title available'}
                     </a>
-                    <p className="text-xs text-ios-gray mt-1">{article.source}</p>
-                    <p className="text-xs text-ios-gray">{article.published}</p>
+                    <p className="text-xs text-ios-gray mt-1">{article.source || 'Unknown source'}</p>
+                    <p className="text-xs text-ios-gray">{article.published || ''}</p>
                   </div>
-                  <a href={article.link} target="_blank" rel="noopener noreferrer">
+                  <a href={article.link || '#'} target="_blank" rel="noopener noreferrer">
                      <ArrowUpRight className="h-4 w-4 text-ios-blue flex-shrink-0 ml-2" />
                   </a>
                 </div>
