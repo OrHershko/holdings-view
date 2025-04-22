@@ -8,8 +8,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import os
 import math
-import random
-import requests
 from datetime import datetime
 import urllib.request
 
@@ -280,8 +278,8 @@ def get_stock_info(symbol):
         logger.info(f"Fetching data for {symbol} without proxy")
     
     try:
-        # Create the yfinance Ticker object (will use our proxy)
-        stock = yf.Ticker(symbol)
+        # Create the yfinance Ticker object with proxy
+        stock = yf.Ticker(symbol, proxy=proxy_dict if use_proxy else None)
         
         # Fetch info and history
         info = stock.info
@@ -615,13 +613,15 @@ def get_history(
         use_proxy = True  # Set to False to disable proxy usage
         
         if use_proxy:
+            # Configure proxy dictionary
+            proxy_dict = get_proxy_dict()
             # Install the proxy opener for urllib (used by yfinance)
             proxy_opener, proxy_host = get_proxy_opener()
             urllib.request.install_opener(proxy_opener)
             logger.info(f"Fetching history for {symbol} using proxy {proxy_host}")
         
         # Fetch data from yfinance
-        stock = yf.Ticker(symbol)
+        stock = yf.Ticker(symbol, proxy=proxy_dict if use_proxy else None)
         hist = stock.history(period=period, interval=interval)
 
         # Log proxy success if used
@@ -749,6 +749,7 @@ def search_stocks_endpoint(query: str = Query(..., min_length=1)):
             
             if use_proxy:
                 # Install the proxy opener for urllib (used by yfinance)
+                proxy_dict = get_proxy_dict()
                 proxy_opener, proxy_host = get_proxy_opener()
                 urllib.request.install_opener(proxy_opener)
                 logger.info(f"Attempting alternative search for {query} using proxy {proxy_host}")
@@ -761,7 +762,7 @@ def search_stocks_endpoint(query: str = Query(..., min_length=1)):
             # If the query looks like a symbol (all caps, short), try it directly
             if query.isupper() and len(query) <= 5:
                 try:
-                    ticker = yf.Ticker(query)
+                    ticker = yf.Ticker(query, proxy=proxy_dict if use_proxy else None)
                     info = ticker.info
                     if info and 'symbol' in info:
                         matching_symbols.append({
@@ -797,11 +798,12 @@ def get_stock_news(symbol: str):
         
         if use_proxy:
             # Install the proxy opener for urllib (used by yfinance)
+            proxy_dict = get_proxy_dict()
             proxy_opener, proxy_host = get_proxy_opener()
             urllib.request.install_opener(proxy_opener)
             logger.info(f"Fetching news for {symbol} using proxy {proxy_host}")
         
-        stock = yf.Ticker(symbol)
+        stock = yf.Ticker(symbol, proxy=proxy_dict if use_proxy else None)
         
         # Wrap the news access in a try block since it's where the JSONDecodeError happens
         try:
