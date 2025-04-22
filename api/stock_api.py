@@ -1,17 +1,16 @@
 import logging
 from functools import lru_cache
+import tempfile
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Query, Body, Depends
 from pydantic import BaseModel
 import time
 
 # Import yfinance config first to set up cache
-from api import yf_config
 import yfinance as yf
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import os
-import random
 from requests.adapters import HTTPAdapter
 from requests.sessions import Session
 from urllib3.util.retry import Retry
@@ -29,7 +28,7 @@ print(f"Set yfinance cache location to: {tmp_dir}")
 
 # --- Proxy Configuration ---
 # Brightdata configuration
-BRIGHTDATA_TOKEN = "05e8031120b9846abb1b5e81bce95877a89181216fb7fdd86ac017efc5ed9c68"
+BRIGHTDATA_TOKEN = os.getenv("BRIGHTDATA_TOKEN")
 BRIGHTDATA_ZONE = "brd"  # Zone identifier
 BRIGHTDATA_HOST = "brd.superproxy.io"
 BRIGHTDATA_PORT = "22225"
