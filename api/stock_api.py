@@ -31,18 +31,29 @@ if not DATABASE_URL:
         "is set in your .env.local file or Vercel environment variables."
     )
 
-# Configure SQLAlchemy engine with connection pooling
-engine = create_engine(
-    DATABASE_URL,
-    pool_size=5,               # Start with 5 connections
-    max_overflow=10,           # Allow up to 10 additional connections
-    pool_timeout=30,           # Wait up to 30 seconds for a connection
-    pool_recycle=1800,        # Recycle connections every 30 minutes
-    pool_pre_ping=True,       # Enable connection health checks
-    connect_args={
-        "sslmode": "require"  # Required for Neon
-    }
-)
+print(f"Initializing database connection...")  # Debug log
+
+try:
+    # Configure SQLAlchemy engine with connection pooling
+    engine = create_engine(
+        DATABASE_URL,
+        pool_size=5,               # Start with 5 connections
+        max_overflow=10,           # Allow up to 10 additional connections
+        pool_timeout=30,           # Wait up to 30 seconds for a connection
+        pool_recycle=1800,        # Recycle connections every 30 minutes
+        pool_pre_ping=True,       # Enable connection health checks
+        connect_args={
+            "sslmode": "require"  # Required for Neon
+        }
+    )
+    
+    # Test the connection
+    with engine.connect() as conn:
+        conn.execute("SELECT 1")
+        print("Database connection successful!")
+except Exception as e:
+    print(f"Error connecting to database: {str(e)}")
+    raise
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -50,25 +61,21 @@ Base = declarative_base()
 # --- Database Models ---
 class HoldingDB(Base):
     __tablename__ = "holdings"
-    # Using symbol as primary key, assuming unique per portfolio (adjust if needed)
     symbol = Column(String, primary_key=True, index=True)
     shares = Column(Float, nullable=False)
     averageCost = Column(Float, nullable=False)
-    # Add 'name' if you want to store it persistently, reduces yfinance lookups
-    # name = Column(String)
 
 class WatchlistDB(Base):
     __tablename__ = "watchlist"
     symbol = Column(String, primary_key=True, index=True)
 
-# Create tables if they don't exist (run once, ideally outside request handlers)
-# You might need a separate script or use Alembic for migrations in a real app
+# Create tables if they don't exist
 try:
     Base.metadata.create_all(bind=engine)
-    print("Database tables checked/created.")
+    print("Database tables created successfully!")
 except Exception as e:
-    print(f"Error creating database tables: {e}")
-
+    print(f"Error creating database tables: {str(e)}")
+    raise
 
 # --- Dependency for DB Session ---
 def get_db():
