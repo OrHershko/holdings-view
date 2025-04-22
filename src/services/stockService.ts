@@ -1,6 +1,174 @@
 import { StockData, StockHistoryData, PortfolioHolding, PortfolioSummary, NewsArticle } from '@/api/stockApi';
 import { SMA, RSI } from 'technicalindicators';
 
+// Proxy management system
+let proxyList: string[] = [];
+let currentProxyIndex = 0;
+let proxyTestInProgress = false;
+
+// Function to test if a proxy is working
+const testProxy = async (proxy: string): Promise<boolean> => {
+  try {
+    // Use a timeout to avoid hanging on slow proxies
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    
+    // Test proxy with CORS proxy service
+    const testUrl = 'https://cors-anywhere.herokuapp.com/https://httpbin.org/ip';
+    const response = await fetch(testUrl, {
+      signal: controller.signal,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-Proxy-Address': proxy
+      }
+    });
+    
+    clearTimeout(timeoutId);
+    return response.ok;
+  } catch (error) {
+    console.log(`Proxy test failed for ${proxy}:`, error);
+    return false;
+  }
+};
+
+// Function to fetch and refresh the proxy list
+const refreshProxyList = async (): Promise<void> => {
+  // Avoid running multiple refreshes simultaneously
+  if (proxyTestInProgress) return;
+  
+  try {
+    proxyTestInProgress = true;
+    updateProxyState({ testing: true });
+    console.log('Fetching and testing proxies...');
+    
+    const response = await fetch('https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all');
+    if (!response.ok) {
+      console.error('Failed to fetch proxy list');
+      return;
+    }
+    
+    const text = await response.text();
+    // Parse the text response into a list of proxies
+    const candidateProxies = text.split('\n')
+      .map(line => line.trim())
+      .filter(line => line && /\d+\.\d+\.\d+\.\d+:\d+/.test(line));
+    
+    console.log(`Found ${candidateProxies.length} potential proxies, testing...`);
+    updateProxyState({ countTesting: candidateProxies.length });
+    
+    // Test proxies in batches to avoid overwhelming the network
+    const batchSize = 10;
+    const validProxies: string[] = [];
+    
+    for (let i = 0; i < candidateProxies.length; i += batchSize) {
+      const batch = candidateProxies.slice(i, i + batchSize);
+      const testResults = await Promise.all(
+        batch.map(async proxy => {
+          const isWorking = await testProxy(proxy);
+          return { proxy, isWorking };
+        })
+      );
+      
+      // Add working proxies to our valid list
+      const workingProxies = testResults
+        .filter(result => result.isWorking)
+        .map(result => result.proxy);
+        
+      validProxies.push(...workingProxies);
+      
+      // Update progress
+      updateProxyState({ 
+        countTested: i + batch.length,
+        countValid: validProxies.length
+      });
+      
+      console.log(`Tested ${i + batch.length}/${candidateProxies.length} proxies, found ${validProxies.length} working`);
+    }
+    
+    if (validProxies.length > 0) {
+      proxyList = validProxies;
+      console.log(`Loaded ${proxyList.length} validated proxies`);
+      
+      // Update the global state with the proxy count
+      updateProxyState({ 
+        count: proxyList.length,
+        countValid: proxyList.length,
+        testing: false
+      });
+    } else {
+      console.warn('No working proxies found');
+      updateProxyState({ 
+        count: 0,
+        testing: false
+      });
+    }
+  } catch (error) {
+    console.error('Error refreshing proxy list:', error);
+    updateProxyState({ testing: false });
+  } finally {
+    proxyTestInProgress = false;
+  }
+};
+
+// Set up global proxy state for UI components to access
+declare global {
+  interface Window {
+    __proxyState: {
+      count: number;
+      active: boolean;
+      lastProxy: string;
+      testing: boolean;
+      countTesting?: number;
+      countTested?: number;
+      countValid?: number;
+    };
+  }
+}
+
+// Initialize global proxy state
+if (typeof window !== 'undefined') {
+  window.__proxyState = {
+    count: 0,
+    active: false,
+    lastProxy: '',
+    testing: false
+  };
+}
+
+// Function to update proxy state and dispatch event
+const updateProxyState = (updates: Partial<typeof window.__proxyState>) => {
+  if (typeof window !== 'undefined') {
+    window.__proxyState = { ...window.__proxyState, ...updates };
+    
+    // Dispatch event for components to listen to
+    window.dispatchEvent(new CustomEvent('proxy-state-changed'));
+  }
+};
+
+// Get the next proxy from the rotation
+const getNextProxy = (): string | null => {
+  if (proxyList.length === 0) return null;
+  
+  const proxy = proxyList[currentProxyIndex];
+  currentProxyIndex = (currentProxyIndex + 1) % proxyList.length;
+  return proxy;
+};
+
+// Initialize by loading the proxy list
+refreshProxyList().then(() => {
+  console.log('Proxy list initialized');
+  // Refresh the list every hour
+  setInterval(refreshProxyList, 60 * 60 * 1000);
+  
+  // Add a global function to manually refresh proxies
+  if (typeof window !== 'undefined') {
+    (window as any).refreshProxies = () => {
+      console.log('Manually refreshing proxies...');
+      refreshProxyList();
+    };
+  }
+});
+
 // Read base URL from environment variable with robust fallback strategy
 // 1. Use VITE_API_BASE_URL from env if available
 // 2. Check if we're in development mode (import.meta.env.DEV)
@@ -53,9 +221,93 @@ const handleApiError = (error: any, context: string): never => {
   throw new Error(errorMessage);
 };
 
+// Helper function for making proxied fetch requests
+const fetchWithProxy = async (url: string, options: RequestInit = {}): Promise<Response> => {
+  // If we have no proxies and we're not currently testing, try to refresh
+  if (proxyList.length === 0 && !proxyTestInProgress) {
+    console.log('No proxies available, triggering refresh');
+    refreshProxyList();
+  }
+  
+  // Try without proxy first
+  try {
+    updateProxyState({ active: false });
+    const directResponse = await fetch(url, options);
+    if (directResponse.ok) {
+      console.log('Direct request successful');
+      return directResponse;
+    } else {
+      console.warn(`Direct request failed with status ${directResponse.status}, trying proxies`);
+    }
+  } catch (error) {
+    console.warn('Direct fetch failed, trying with proxy...', error);
+  }
+  
+  // If direct fetch fails and we have proxies, try with a proxy
+  if (proxyList.length > 0) {
+    let attempts = 0;
+    const maxAttempts = Math.min(3, proxyList.length);
+    const attemptedProxies: string[] = [];
+    
+    while (attempts < maxAttempts) {
+      const proxy = getNextProxy();
+      if (!proxy || attemptedProxies.includes(proxy)) {
+        // Skip if null or we've already tried this proxy in this request
+        continue;
+      }
+      
+      attemptedProxies.push(proxy);
+      console.log(`Trying with proxy: ${proxy}`);
+      
+      // Update global state to indicate we're using a proxy
+      updateProxyState({ 
+        active: true,
+        lastProxy: proxy
+      });
+      
+      try {
+        // For client-side code, we need to use a proxy server or CORS proxy
+        // since browsers can't directly specify proxies for fetch
+        const proxyUrl = `https://cors-anywhere.herokuapp.com/${url}`;
+        
+        const proxyResponse = await fetch(proxyUrl, {
+          ...options,
+          headers: {
+            ...options.headers,
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-Proxy-Address': proxy
+          }
+        });
+        
+        if (proxyResponse.ok) {
+          console.log(`Proxy request successful using ${proxy}`);
+          return proxyResponse;
+        } else {
+          console.warn(`Proxy ${proxy} request failed with status ${proxyResponse.status}`);
+        }
+      } catch (proxyError) {
+        console.warn(`Proxy attempt ${attempts + 1} with ${proxy} failed:`, proxyError);
+      }
+      
+      attempts++;
+    }
+    
+    console.warn(`All ${attempts} proxy attempts failed`);
+  } else {
+    console.warn('No proxies available for fallback');
+  }
+  
+  // Reset active state when falling back to direct fetch
+  updateProxyState({ active: false });
+  
+  // Fall back to standard fetch if all proxy attempts fail
+  console.log('Falling back to direct fetch as last resort');
+  return fetch(url, options);
+};
+
 export const fetchStock = async (symbol: string): Promise<StockData> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/stock/${symbol}`);
+    const response = await fetchWithProxy(`${API_BASE_URL}/stock/${symbol}`);
     
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Failed to read error response');
@@ -91,8 +343,8 @@ export const fetchStockHistory = async (
   try {
     console.log(`Fetching history for ${symbol} with period=${fetchPeriod}, interval=${interval} from ${API_BASE_URL}`);
     
-    // Use the extended period for fetching data
-    const response = await fetch(`${API_BASE_URL}/history/${symbol}?period=${fetchPeriod}&interval=${interval}`);
+    // Use proxied fetch
+    const response = await fetchWithProxy(`${API_BASE_URL}/history/${symbol}?period=${fetchPeriod}&interval=${interval}`);
     
     if (!response.ok) {
       const errorBody = await response.text().catch(() => 'Failed to read error response');
@@ -343,7 +595,7 @@ export const fetchPortfolio = async (): Promise<{
   holdings: PortfolioHolding[];
   summary: PortfolioSummary;
 }> => {
-  const response = await fetch(`${API_BASE_URL}/portfolio`);
+  const response = await fetchWithProxy(`${API_BASE_URL}/portfolio`);
   if (!response.ok) throw new Error('Failed to fetch portfolio');
   const data = await response.json();
   const holdings: PortfolioHolding[] = data.holdings?.map((item: any) => ({
@@ -383,13 +635,13 @@ export interface WatchlistItem {
 // --- Watchlist Service Functions ---
 
 export const fetchWatchlist = async (): Promise<WatchlistItem[]> => {
-  const response = await fetch(`${API_BASE_URL}/watchlist`);
+  const response = await fetchWithProxy(`${API_BASE_URL}/watchlist`);
   if (!response.ok) throw new Error('Failed to fetch watchlist');
   return response.json();
 };
 
 export const addToWatchlist = async (symbol: string): Promise<{ message: string }> => {
-  const response = await fetch(`${API_BASE_URL}/watchlist/add/${symbol.toUpperCase()}`, {
+  const response = await fetchWithProxy(`${API_BASE_URL}/watchlist/add/${symbol.toUpperCase()}`, {
     method: 'POST',
   });
   if (!response.ok) {
@@ -400,7 +652,7 @@ export const addToWatchlist = async (symbol: string): Promise<{ message: string 
 };
 
 export const removeFromWatchlist = async (symbol: string): Promise<{ message: string }> => {
-  const response = await fetch(`${API_BASE_URL}/watchlist/remove/${symbol.toUpperCase()}`, {
+  const response = await fetchWithProxy(`${API_BASE_URL}/watchlist/remove/${symbol.toUpperCase()}`, {
     method: 'DELETE',
   });
   if (!response.ok) {
@@ -411,7 +663,7 @@ export const removeFromWatchlist = async (symbol: string): Promise<{ message: st
 };
 
 export const searchStocks = async (query: string): Promise<StockData[]> => {
-  const response = await fetch(`${API_BASE_URL}/search?q=${encodeURIComponent(query)}`);
+  const response = await fetchWithProxy(`${API_BASE_URL}/search?q=${encodeURIComponent(query)}`);
   if (!response.ok) throw new Error('Failed to search stocks');
   const data = await response.json();
   // Assuming backend returns a list of stock-like objects
@@ -428,7 +680,7 @@ export const searchStocks = async (query: string): Promise<StockData[]> => {
 
 export const fetchNews = async (symbol: string): Promise<NewsArticle[]> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/news/${symbol}`);
+    const response = await fetchWithProxy(`${API_BASE_URL}/news/${symbol}`);
     
     // Check if response is ok
     if (!response.ok) {

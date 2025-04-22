@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ArrowUpRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button'; // Assuming you have a Button component
+import { fetchNews as fetchNewsService } from '@/services/stockService';
 
 interface NewsArticle {
   title: string;
@@ -25,28 +26,11 @@ const MarketOverview: React.FC<MarketOverviewProps> = ({ portfolio }) => {
   useEffect(() => {
     const fetchNews = async (symbol: string) => {
       try {
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://holdings-view.vercel.app/api';
-        const response = await fetch(`${API_BASE_URL}/news/${symbol}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch news');
-        }
+        // Use the service function instead of direct fetch to leverage proxies
+        const articles = await fetchNewsService(symbol);
         
-        let data;
-        try {
-          data = await response.json();
-          
-          // Validate that the response is an array
-          if (!Array.isArray(data)) {
-            console.error(`News data for ${symbol} is not an array:`, data);
-            data = []; // Set to empty array if not an array
-          }
-        } catch (parseError) {
-          console.error(`Error parsing news data for ${symbol}:`, parseError);
-          data = []; // Set to empty array on parse error
-        }
-        
-        // Safely slice the array (now we know it's definitely an array)
-        const limitedData = data.slice(0, 5); // Limit to 5 articles per symbol
+        // Limit to 5 articles per symbol (the service may return more)
+        const limitedData = articles.slice(0, 5);
         
         setNews(prev => ({ ...prev, [symbol]: limitedData }));
       } catch (error) {
