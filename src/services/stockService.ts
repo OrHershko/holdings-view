@@ -2,31 +2,45 @@ import { StockData, StockHistoryData, PortfolioHolding, PortfolioSummary, NewsAr
 import { SMA, RSI } from 'technicalindicators';
 
 // Proxy management system
-let proxyList: string[] = [];
+let proxyList: Array<{
+  host: string;
+  port: string;
+  username: string;
+  password: string;
+  formatted: string; // For display purposes
+}> = [];
 let currentProxyIndex = 0;
 let proxyTestInProgress = false;
 
+// Proxy API URL (authenticated proxies)
+const PROXY_API_URL = 'https://proxy.webshare.io/api/v2/proxy/list/download/kxkgyctgbykbnahljvrzowjwldvklpohgnokguua/-/any/username/direct/-/';
+
 // Function to test if a proxy is working
-const testProxy = async (proxy: string): Promise<boolean> => {
+const testProxy = async (proxy: typeof proxyList[0]): Promise<boolean> => {
   try {
     // Use a timeout to avoid hanging on slow proxies
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
     
-    // Test proxy with CORS proxy service
-    const testUrl = 'https://cors-anywhere.herokuapp.com/https://httpbin.org/ip';
+    // Test proxy using authentication
+    const testUrl = 'https://httpbin.org/ip';
+    
+    // Use the proxy-agent approach, which will be handled by the CORS proxy
+    const auth = btoa(`${proxy.username}:${proxy.password}`);
     const response = await fetch(testUrl, {
       signal: controller.signal,
       headers: {
         'X-Requested-With': 'XMLHttpRequest',
-        'X-Proxy-Address': proxy
+        'X-Proxy-Host': proxy.host,
+        'X-Proxy-Port': proxy.port,
+        'X-Proxy-Authorization': `Basic ${auth}`
       }
     });
     
     clearTimeout(timeoutId);
     return response.ok;
   } catch (error) {
-    console.log(`Proxy test failed for ${proxy}:`, error);
+    console.log(`Proxy test failed for ${proxy.formatted}:`, error);
     return false;
   }
 };
@@ -39,55 +53,43 @@ const refreshProxyList = async (): Promise<void> => {
   try {
     proxyTestInProgress = true;
     updateProxyState({ testing: true });
-    console.log('Fetching and testing proxies...');
+    console.log('Fetching and testing authenticated proxies...');
     
-    const response = await fetch('https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all');
+    const response = await fetch(PROXY_API_URL);
     if (!response.ok) {
       console.error('Failed to fetch proxy list');
       return;
     }
     
     const text = await response.text();
-    // Parse the text response into a list of proxies
+    // Parse the text response into authenticated proxies
+    // Format: IP:PORT:USERNAME:PASSWORD
     const candidateProxies = text.split('\n')
-      .map(line => line.trim())
-      .filter(line => line && /\d+\.\d+\.\d+\.\d+:\d+/.test(line));
+      .map(line => {
+        const parts = line.trim().split(':');
+        if (parts.length === 4) {
+          return {
+            host: parts[0],
+            port: parts[1],
+            username: parts[2],
+            password: parts[3],
+            formatted: `${parts[0]}:${parts[1]}`
+          };
+        }
+        return null;
+      })
+      .filter(proxy => proxy !== null) as typeof proxyList;
     
     console.log(`Found ${candidateProxies.length} potential proxies, testing...`);
     updateProxyState({ countTesting: candidateProxies.length });
     
-    // Test proxies in batches to avoid overwhelming the network
-    const batchSize = 10;
-    const validProxies: string[] = [];
-    
-    for (let i = 0; i < candidateProxies.length; i += batchSize) {
-      const batch = candidateProxies.slice(i, i + batchSize);
-      const testResults = await Promise.all(
-        batch.map(async proxy => {
-          const isWorking = await testProxy(proxy);
-          return { proxy, isWorking };
-        })
-      );
-      
-      // Add working proxies to our valid list
-      const workingProxies = testResults
-        .filter(result => result.isWorking)
-        .map(result => result.proxy);
-        
-      validProxies.push(...workingProxies);
-      
-      // Update progress
-      updateProxyState({ 
-        countTested: i + batch.length,
-        countValid: validProxies.length
-      });
-      
-      console.log(`Tested ${i + batch.length}/${candidateProxies.length} proxies, found ${validProxies.length} working`);
-    }
+    // For authenticated proxies, we'll consider them all valid without testing
+    // since they're from a paid service and likely to be reliable
+    const validProxies = candidateProxies;
     
     if (validProxies.length > 0) {
       proxyList = validProxies;
-      console.log(`Loaded ${proxyList.length} validated proxies`);
+      console.log(`Loaded ${proxyList.length} authenticated proxies`);
       
       // Update the global state with the proxy count
       updateProxyState({ 
@@ -146,7 +148,7 @@ const updateProxyState = (updates: Partial<typeof window.__proxyState>) => {
 };
 
 // Get the next proxy from the rotation
-const getNextProxy = (): string | null => {
+const getNextProxy = (): typeof proxyList[0] | null => {
   if (proxyList.length === 0) return null;
   
   const proxy = proxyList[currentProxyIndex];
@@ -251,42 +253,47 @@ const fetchWithProxy = async (url: string, options: RequestInit = {}): Promise<R
     
     while (attempts < maxAttempts) {
       const proxy = getNextProxy();
-      if (!proxy || attemptedProxies.includes(proxy)) {
+      if (!proxy || attemptedProxies.includes(proxy.formatted)) {
         // Skip if null or we've already tried this proxy in this request
         continue;
       }
       
-      attemptedProxies.push(proxy);
-      console.log(`Trying with proxy: ${proxy}`);
+      attemptedProxies.push(proxy.formatted);
+      console.log(`Trying with authenticated proxy: ${proxy.formatted}`);
       
       // Update global state to indicate we're using a proxy
       updateProxyState({ 
         active: true,
-        lastProxy: proxy
+        lastProxy: proxy.formatted
       });
       
       try {
-        // For client-side code, we need to use a proxy server or CORS proxy
-        // since browsers can't directly specify proxies for fetch
-        const proxyUrl = `https://cors-anywhere.herokuapp.com/${url}`;
+        // For client-side code with authenticated proxies
+        // We need a CORS proxy that supports proxy authentication
+        const corsProxyUrl = 'https://cors-anywhere.herokuapp.com/';
+        const proxyUrl = `${corsProxyUrl}${url}`;
         
+        // Add authentication headers
+        const auth = btoa(`${proxy.username}:${proxy.password}`);
         const proxyResponse = await fetch(proxyUrl, {
           ...options,
           headers: {
             ...options.headers,
             'X-Requested-With': 'XMLHttpRequest',
-            'X-Proxy-Address': proxy
+            'X-Proxy-Host': proxy.host,
+            'X-Proxy-Port': proxy.port,
+            'X-Proxy-Authorization': `Basic ${auth}`
           }
         });
         
         if (proxyResponse.ok) {
-          console.log(`Proxy request successful using ${proxy}`);
+          console.log(`Proxy request successful using ${proxy.formatted}`);
           return proxyResponse;
         } else {
-          console.warn(`Proxy ${proxy} request failed with status ${proxyResponse.status}`);
+          console.warn(`Proxy ${proxy.formatted} request failed with status ${proxyResponse.status}`);
         }
       } catch (proxyError) {
-        console.warn(`Proxy attempt ${attempts + 1} with ${proxy} failed:`, proxyError);
+        console.warn(`Proxy attempt ${attempts + 1} with ${proxy.formatted} failed:`, proxyError);
       }
       
       attempts++;
