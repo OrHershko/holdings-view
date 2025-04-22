@@ -24,7 +24,8 @@ const AddStockDialog: React.FC<AddStockDialogProps> = ({ isOpen, onClose }) => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8000/api/portfolio/add', {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://holdings-view.vercel.app/api';
+      const response = await fetch(`${API_BASE_URL}/portfolio/add`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

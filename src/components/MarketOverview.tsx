@@ -22,52 +22,23 @@ const MarketOverview: React.FC<MarketOverviewProps> = ({ portfolio }) => {
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
-    const fetchNews = async () => {
-      setLoading(true);
+    const fetchNews = async (symbol: string) => {
       try {
-        const responses = await Promise.all(
-          portfolio.map((symbol) =>
-            fetch(`http://localhost:8000/api/news/${symbol}`)
-          )
-        );
-        const articles = await Promise.all(responses.map((res) => res.json()));
-        const aggregatedNews = articles
-          .flatMap((articleList) =>
-            articleList.map((item: any) => ({
-              title: item.title,
-              link: item.link,
-              source: item.source,
-              published: item.published
-                ? new Date(item.published).toLocaleString()
-                : 'Date unavailable',
-            }))
-          )
-          // Sort news by published date (newest first) if possible
-          .sort((a, b) => {
-            try {
-              // Attempt to parse dates for sorting
-              const dateA = new Date(a.published).getTime();
-              const dateB = new Date(b.published).getTime();
-              if (!isNaN(dateA) && !isNaN(dateB)) {
-                return dateB - dateA;
-              }
-            } catch (e) {
-              // Ignore parsing errors during sort
-            }
-            return 0; // Keep original order if dates are invalid/unavailable
-          });
-        setNews(aggregatedNews);
-        setCurrentPage(1); // Reset to first page on new data fetch
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://holdings-view.vercel.app/api';
+        const response = await fetch(`${API_BASE_URL}/news/${symbol}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch news');
+        }
+        const data: NewsArticle[] = await response.json();
+        setNews(prev => ({ ...prev, [symbol]: data.slice(0, 5) })); // Limit to 5 articles per symbol
       } catch (error) {
-        console.error('Failed to fetch news:', error);
-        setNews([]); // Clear news on error
-      } finally {
-        setLoading(false);
+        console.error(`Error fetching news for ${symbol}:`, error);
+        setNews(prev => ({ ...prev, [symbol]: [] })); // Set empty array on error
       }
     };
 
     if (portfolio.length > 0) {
-      fetchNews();
+      portfolio.forEach(symbol => fetchNews(symbol));
     } else {
       setNews([]); // Clear news if portfolio is empty
       setLoading(false);

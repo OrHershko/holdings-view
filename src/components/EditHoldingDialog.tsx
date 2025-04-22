@@ -29,7 +29,8 @@ const EditHoldingDialog: React.FC<EditHoldingDialogProps> = ({ isOpen, onClose, 
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8000/api/portfolio/update', {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://holdings-view.vercel.app/api';
+      const response = await fetch(`${API_BASE_URL}/portfolio/update`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -70,7 +71,8 @@ const EditHoldingDialog: React.FC<EditHoldingDialogProps> = ({ isOpen, onClose, 
     setIsLoading(true);
 
     try {
-      const response = await fetch(`http://localhost:8000/api/portfolio/delete/${holding.symbol}`, {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://holdings-view.vercel.app/api';
+      const response = await fetch(`${API_BASE_URL}/portfolio/delete/${holding.symbol}`, {
         method: 'DELETE',
       });
 
