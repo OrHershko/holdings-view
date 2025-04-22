@@ -8,3 +8,4 @@ psycopg2-binary==2.9.9
 alembic==1.13.1
 pandas==2.2.0
 numpy==1.26.4
+requests==2.31.0
