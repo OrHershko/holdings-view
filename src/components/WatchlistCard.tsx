@@ -41,7 +41,7 @@ const WatchlistCard: React.FC<WatchlistCardProps> = ({ onSelectStock }) => {
        }
     });
   };
-
+    
   return (
     <Card className="ios-card">
       <CardHeader>
@@ -65,7 +65,7 @@ const WatchlistCard: React.FC<WatchlistCardProps> = ({ onSelectStock }) => {
             {addMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
           </Button>
         </div>
-
+        
         {isLoading && (
           <div className="text-center py-4">
             <Loader2 className="h-6 w-6 animate-spin inline-block text-ios-gray" />
@@ -80,18 +80,18 @@ const WatchlistCard: React.FC<WatchlistCardProps> = ({ onSelectStock }) => {
             {watchlist.map((stock) => {
               const isPositiveChange = stock.change ? stock.change >= 0 : true;
               return (
-                <div
-                  key={stock.symbol}
+            <div 
+              key={stock.symbol}
                   className="flex items-center justify-between p-2 rounded hover:bg-gray-700/50 cursor-pointer group"
-                >
+            >
                   <div onClick={() => onSelectStock(stock.symbol)} className="flex-grow">
-                    <p className="font-medium">{stock.symbol}</p>
+                <p className="font-medium">{stock.symbol}</p>
                     {stock.name && <p className="text-xs text-ios-gray">{stock.name}</p>}
-                  </div>
+              </div>
                   <div className="text-right mx-4" onClick={() => onSelectStock(stock.symbol)}>
                     {stock.price !== undefined && stock.price !== null ? (
                         <>
-                          <p className="font-medium">${stock.price.toFixed(2)}</p>
+                <p className="font-medium">${stock.price.toFixed(2)}</p>
                           {stock.changePercent !== undefined && stock.changePercent !== null ? (
                               <div className={`flex items-center justify-end text-xs ${isPositiveChange ? 'text-ios-green' : 'text-ios-red'}`}>
                                 {isPositiveChange ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
@@ -124,7 +124,7 @@ const WatchlistCard: React.FC<WatchlistCardProps> = ({ onSelectStock }) => {
                 </div>
               );
             })}
-          </div>
+              </div>
         )}
       </CardContent>
     </Card>

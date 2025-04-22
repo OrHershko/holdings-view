@@ -17,25 +17,14 @@ from urllib3.util.retry import Retry
 
 # --- Database Setup (SQLAlchemy) ---
 from sqlalchemy import create_engine, Column, String, Float
-from sqlalchemy.orm import sessionmaker, Session as SQLAlchemySession, declarative_base
+from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from sqlalchemy.exc import SQLAlchemyError
 from dotenv import load_dotenv
 
-# Set yfinance cache location to a writable temporary directory
+# Set yfinance cache location to a writeable temporary directory
 tmp_dir = tempfile.gettempdir()
 yf.set_tz_cache_location(tmp_dir)
-print(f"Setting yfinance cache to: {tmp_dir}")
-
-# --- Proxy Configuration ---
-# Brightdata configuration
-BRIGHTDATA_TOKEN = os.getenv("BRIGHTDATA_TOKEN", "05e8031120b9846abb1b5e81bce95877a89181216fb7fdd86ac017efc5ed9c68")
-BRIGHTDATA_ZONE = "brd"  # Zone identifier
-BRIGHTDATA_HOST = "brd.superproxy.io"
-BRIGHTDATA_PORT = "22225"
-
-# Verify token is available
-if not BRIGHTDATA_TOKEN:
-    print("WARNING: BRIGHTDATA_TOKEN environment variable not set. Proxy functionality will not work.")
+print(f"Set yfinance cache location to: {tmp_dir}")
 
 # Track last time we used the proxy
 proxy_last_used = time.time()
@@ -52,9 +41,8 @@ def get_brightdata_session():
     # Mark this proxy as used now
     proxy_last_used = time.time()
     
-    # Correct format for Brightdata proxy:
-    # Format: {token}:{token}@{zone}.{host}:{port}
-    proxy_url = f"http://{BRIGHTDATA_TOKEN}:{BRIGHTDATA_TOKEN}@{BRIGHTDATA_ZONE}.{BRIGHTDATA_HOST}:{BRIGHTDATA_PORT}"
+    # Format: {zone}.{token}:{token}@{host}:{port}
+    proxy_url = os.getenv("BRIGHTDATA_PROXY_URL")
     
     session = RequestsSession()
     session.proxies = {
@@ -311,7 +299,7 @@ def get_stock_info(symbol):
         change_percent = (change / previous_close) * 100 if previous_close else 0
         
         asset_type = determine_asset_type(symbol, info)
-        
+
         return {
             "symbol": symbol,
             "name": info.get("shortName") or info.get("longName") or symbol,
@@ -336,7 +324,7 @@ def determine_asset_type(symbol: str, info: Dict[str, Any]) -> str:
 # --- Refactored API Routes --- 
 
 @app.get("/api/portfolio")
-def get_portfolio(db: SQLAlchemySession = Depends(get_db)):
+def get_portfolio(db: Session = Depends(get_db)):
     try:
         db_holdings = db.query(HoldingDB).all()
     except SQLAlchemyError as e:
@@ -409,7 +397,7 @@ def get_portfolio(db: SQLAlchemySession = Depends(get_db)):
 
 
 @app.post("/api/portfolio/add")
-def add_to_portfolio(holding_data: HoldingCreate, db: SQLAlchemySession = Depends(get_db)):
+def add_to_portfolio(holding_data: HoldingCreate, db: Session = Depends(get_db)):
     # Check if holding exists
     db_holding = db.query(HoldingDB).filter(HoldingDB.symbol == holding_data.symbol).first()
     if db_holding:
@@ -429,7 +417,7 @@ def add_to_portfolio(holding_data: HoldingCreate, db: SQLAlchemySession = Depend
         raise HTTPException(status_code=500, detail="Database error adding holding.")
 
 @app.put("/api/portfolio/update")
-def update_holding(symbol: str = Body(...), shares: float = Body(...), averageCost: float = Body(...), db: SQLAlchemySession = Depends(get_db)):
+def update_holding(symbol: str = Body(...), shares: float = Body(...), averageCost: float = Body(...), db: Session = Depends(get_db)):
     db_holding = db.query(HoldingDB).filter(HoldingDB.symbol == symbol).first()
     if not db_holding:
         raise HTTPException(status_code=404, detail="Holding not found")
@@ -446,7 +434,7 @@ def update_holding(symbol: str = Body(...), shares: float = Body(...), averageCo
         raise HTTPException(status_code=500, detail="Database error updating holding.")
 
 @app.delete("/api/portfolio/delete/{symbol}")
-def delete_holding(symbol: str, db: SQLAlchemySession = Depends(get_db)):
+def delete_holding(symbol: str, db: Session = Depends(get_db)):
     db_holding = db.query(HoldingDB).filter(HoldingDB.symbol == symbol).first()
     if not db_holding:
         raise HTTPException(status_code=404, detail="Holding not found")
@@ -461,7 +449,7 @@ def delete_holding(symbol: str, db: SQLAlchemySession = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Database error deleting holding.")
 
 @app.post("/api/portfolio/reorder")
-def reorder_holdings(request: ReorderRequest, db: SQLAlchemySession = Depends(get_db)):
+def reorder_holdings(request: ReorderRequest, db: Session = Depends(get_db)):
     try:
         # Get all holdings
         holdings = db.query(HoldingDB).all()
@@ -494,7 +482,7 @@ def reorder_holdings(request: ReorderRequest, db: SQLAlchemySession = Depends(ge
         raise HTTPException(status_code=500, detail="Database error reordering holdings")
 
 @app.post("/api/portfolio/upload")
-def upload_portfolio(holdings: List[HoldingCreate], db: SQLAlchemySession = Depends(get_db)):
+def upload_portfolio(holdings: List[HoldingCreate], db: Session = Depends(get_db)):
     if not holdings:
         raise HTTPException(status_code=400, detail="No valid holdings data received.")
     
@@ -523,7 +511,7 @@ def upload_portfolio(holdings: List[HoldingCreate], db: SQLAlchemySession = Depe
         raise HTTPException(status_code=500, detail="Error processing portfolio upload.")
 
 @app.get("/api/watchlist", response_model=List[WatchlistItemResponse])
-def get_watchlist_details(db: SQLAlchemySession = Depends(get_db)):
+def get_watchlist_details(db: Session = Depends(get_db)):
     try:
         watchlist_symbols_db = db.query(WatchlistDB.symbol).all()
         watchlist_symbols = [s[0] for s in watchlist_symbols_db] # Extract symbols
@@ -551,7 +539,7 @@ def get_watchlist_details(db: SQLAlchemySession = Depends(get_db)):
     return watchlist_details
 
 @app.post("/api/watchlist/add/{symbol}")
-def add_to_watchlist(symbol: str, db: SQLAlchemySession = Depends(get_db)):
+def add_to_watchlist(symbol: str, db: Session = Depends(get_db)):
     if not symbol.isalnum():
         raise HTTPException(status_code=400, detail="Invalid symbol format")
     symbol_upper = symbol.upper()
@@ -572,7 +560,7 @@ def add_to_watchlist(symbol: str, db: SQLAlchemySession = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Database error adding to watchlist.")
 
 @app.delete("/api/watchlist/remove/{symbol}")
-def remove_from_watchlist(symbol: str, db: SQLAlchemySession = Depends(get_db)):
+def remove_from_watchlist(symbol: str, db: Session = Depends(get_db)):
     symbol_upper = symbol.upper()
     db_symbol = db.query(WatchlistDB).filter(WatchlistDB.symbol == symbol_upper).first()
     if not db_symbol:
@@ -705,21 +693,20 @@ def get_stock_news(symbol: str):
                         # Parse the existing date string
                         ts = pd.to_datetime(publish_time_str, errors='coerce')
                         if pd.notna(ts):
-                             published_iso = ts.isoformat()
+                            published_iso = ts.isoformat()
                         else:
-                             logger.warning(f"Could not parse pubDate string '{publish_time_str}' for {symbol} news item.")
+                            logger.warning(f"Could not parse pubDate string '{publish_time_str}' for {symbol} news item.")
                     except Exception as dt_error: # Catch broader errors during parsing
                         logger.warning(f"Error parsing pubDate string '{publish_time_str}' for {symbol}: {dt_error}")
 
-                articles.append({
-                        "title": title if title else "No title available",
-                        "link": link if link else "#",
-                        "source": source if source else "Unknown source",
-                        "published": published_iso if published_iso else "",
-                    })
+                        articles.append({
+                            "title": title if title else "No title available",
+                            "link": link if link else "#",
+                            "source": source if source else "Unknown source",
+                            "published": published_iso if published_iso else "",
+                        })
             except Exception as item_error:
                 logger.warning(f"Error processing news item for {symbol}: {item_error}")
-                # Continue processing other items
         
         return articles
     
