@@ -91,7 +91,8 @@ const UploadCsvDialog: React.FC<UploadCsvDialogProps> = ({ isOpen, onClose }) =>
 
         // --- Send data to backend --- 
         try {
-          const response = await fetch('http://localhost:8000/api/portfolio/upload', {
+          const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://holdings-view.vercel.app/api';
+          const response = await fetch(`${API_BASE_URL}/portfolio/upload`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -148,9 +149,6 @@ const UploadCsvDialog: React.FC<UploadCsvDialogProps> = ({ isOpen, onClose }) =>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="csvFile" className="text-right">
-              CSV File
-            </Label>
             <Input
               id="csvFile"
               type="file"
@@ -169,11 +167,21 @@ const UploadCsvDialog: React.FC<UploadCsvDialogProps> = ({ isOpen, onClose }) =>
             Expected columns: Symbol, Shares, AverageCost
           </p>
         </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
+        <DialogFooter className="flex gap-2">
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={onClose} 
+            disabled={isLoading}
+            className="min-w-[100px]"
+          >
             Cancel
           </Button>
-          <Button onClick={handleUpload} disabled={isLoading || !selectedFile}>
+          <Button 
+            onClick={handleUpload} 
+            disabled={isLoading || !selectedFile}
+            className="min-w-[100px]"
+          >
             {isLoading ? 'Uploading...' : 'Upload'}
           </Button>
         </DialogFooter>
