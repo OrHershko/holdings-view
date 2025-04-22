@@ -19,7 +19,19 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  // Add optimizeDeps configuration
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          charts: ['lightweight-charts', 'recharts'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-popover']
+        }
+      }
+    }
+  },
   optimizeDeps: {
     include: ['lightweight-charts'],
   },
