@@ -33,8 +33,17 @@ WEBSHARE_PROXIES = [
     {'host': '185.199.231.45', 'port': '8382', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'}
 ]
 
-def get_random_proxy_session():
-    proxy = random.choice(WEBSHARE_PROXIES)
+# Track current proxy index
+current_proxy_index = 0
+
+def get_next_proxy_session():
+    global current_proxy_index
+    
+    # Cycle through proxies in sequence
+    proxy = WEBSHARE_PROXIES[current_proxy_index]
+    # Update index for next call
+    current_proxy_index = (current_proxy_index + 1) % len(WEBSHARE_PROXIES)
+    
     proxy_url = f"http://{proxy['username']}:{proxy['password']}@{proxy['host']}:{proxy['port']}"
 
     session = Session()
@@ -43,18 +52,34 @@ def get_random_proxy_session():
         "https": proxy_url,
     }
 
-    retries = Retry(total=5, backoff_factor=1)
+    # Add timeouts to prevent hanging connections
+    session.timeout = 10  # Flat 10 second timeout
+
+    retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
     adapter = HTTPAdapter(max_retries=retries)
     session.mount("http://", adapter)
     session.mount("https://", adapter)
 
     return session
 
-# שימוש עם yfinance
-session = get_random_proxy_session()
+# Try all proxies before giving up
+def get_with_proxy_rotation(func, *args, **kwargs):
+    # Try each proxy in sequence
+    for _ in range(len(WEBSHARE_PROXIES)):
+        try:
+            # Get a new session with next proxy
+            session = get_next_proxy_session()
+            # Call the function with the session
+            return func(*args, session=session, **kwargs)
+        except Exception as e:
+            logger.warning(f"Proxy error: {str(e)}. Trying next proxy.")
+            continue
+    
+    # If all proxies fail, raise the last error
+    raise HTTPException(status_code=500, detail="All proxies failed")
 
-
-
+# Initialize with first proxy
+session = get_next_proxy_session()
 
 # Load environment variables from .env and .env.local
 load_dotenv()  # Load .env first
@@ -237,40 +262,44 @@ logger = logging.getLogger(__name__)
 # --- Helper Functions 
 @lru_cache()
 def get_stock_info(symbol):
-    stock = yf.Ticker(symbol, session=session)
-    info = stock.info
-    hist = stock.history(period="2d")
-    
-    if hist.empty:
-        # Try fetching 'info' again if hist fails
-        try:
-             info = stock.info # Re-fetch info as backup
-             if not info or info.get('regularMarketPrice') is None:
-                  raise ValueError("Info lacks price data")
-        except Exception:
-             raise HTTPException(status_code=404, detail=f"Could not retrieve data for symbol: {symbol}")
+    def fetch_with_session(symbol, session):
+        stock = yf.Ticker(symbol, session=session)
+        info = stock.info
+        hist = stock.history(period="2d")
         
-        current_price = info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
-        previous_close = info.get("previousClose") or current_price # Best guess if hist is empty
-    else:
-        current_price = hist['Close'].iloc[-1]
-        previous_close = hist['Close'].iloc[0] if len(hist) > 1 else current_price
+        if hist.empty:
+            # Try fetching 'info' again if hist fails
+            try:
+                info = stock.info # Re-fetch info as backup
+                if not info or info.get('regularMarketPrice') is None:
+                    raise ValueError("Info lacks price data")
+            except Exception:
+                raise HTTPException(status_code=404, detail=f"Could not retrieve data for symbol: {symbol}")
+            
+            current_price = info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
+            previous_close = info.get("previousClose") or current_price # Best guess if hist is empty
+        else:
+            current_price = hist['Close'].iloc[-1]
+            previous_close = hist['Close'].iloc[0] if len(hist) > 1 else current_price
 
-    change = current_price - previous_close
-    change_percent = (change / previous_close) * 100 if previous_close else 0
-    
-    asset_type = determine_asset_type(symbol, info)
-
-    return {
-        "symbol": symbol,
-    "name": info.get("shortName") or info.get("longName") or symbol,
-    "price": current_price,
-        "change": change,
-        "changePercent": change_percent,
-    "marketCap": info.get("marketCap"),
-    "volume": info.get("regularMarketVolume") or info.get("volume"),
-    "type": asset_type
-    }
+        change = current_price - previous_close
+        change_percent = (change / previous_close) * 100 if previous_close else 0
+        
+        asset_type = determine_asset_type(symbol, info)
+        
+        return {
+            "symbol": symbol,
+            "name": info.get("shortName") or info.get("longName") or symbol,
+            "price": current_price,
+            "change": change,
+            "changePercent": change_percent,
+            "marketCap": info.get("marketCap"),
+            "volume": info.get("regularMarketVolume") or info.get("volume"),
+            "type": asset_type
+        }
+        
+    # Use proxy rotation to try all proxies
+    return get_with_proxy_rotation(fetch_with_session, symbol)
 
 def determine_asset_type(symbol: str, info: Dict[str, Any]) -> str:
     quote_type = info.get("quoteType", "").lower()
@@ -548,7 +577,7 @@ def get_history(
     period: str = Query("1y", description="Duration of historical data"),
     interval: str = Query("1d", description="Data interval")
 ):
-    try:
+    def fetch_history_with_session(symbol, period, interval, session):
         stock = yf.Ticker(symbol, session=session)
         hist = stock.history(period=period, interval=interval)
 
@@ -578,21 +607,38 @@ def get_history(
             previous_close = current_close
 
         return {"symbol": symbol, "history": history}
+        
+    try:
+        # Use proxy rotation system
+        return get_with_proxy_rotation(fetch_history_with_session, symbol, period, interval)
     except Exception as e:
         logger.error(f"Error fetching history for {symbol}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch history for {symbol}")
 
 @app.get("/api/search")
 def search_stocks_endpoint(query: str = Query(..., min_length=1)):
+    def search_with_session(query, session):
+        ticker = yf.Ticker(query.upper(), session=session)
+        info = ticker.info
+        if info and 'symbol' in info:
+            return [{"symbol": info['symbol'], "name": info.get('shortName') or info.get('longName') or 'Unknown'}]
+        return []
+        
     try:
+        # Try direct lookup using get_stock_info which has proxy rotation built in
         stock_info = get_stock_info(query.upper()) 
         return [{"symbol": stock_info["symbol"], "name": stock_info["name"]}]
     except Exception:
-        return []
+        try:
+            # If direct lookup fails, try alternate search with proxy rotation
+            return get_with_proxy_rotation(search_with_session, query)
+        except Exception:
+            # If all methods fail, return empty list
+            return []
 
 @app.get("/api/news/{symbol}", response_model=List[NewsArticle])
 def get_stock_news(symbol: str):
-    try:
+    def fetch_news_with_session(symbol, session):
         stock = yf.Ticker(symbol, session=session)
         
         # Wrap the news access in a try block since it's where the JSONDecodeError happens
@@ -641,16 +687,20 @@ def get_stock_news(symbol: str):
                         logger.warning(f"Error parsing pubDate string '{publish_time_str}' for {symbol}: {dt_error}")
 
                 articles.append({
-                    "title": title if title else "No title available",
-                    "link": link if link else "#",
-                    "source": source if source else "Unknown source",
-                    "published": published_iso if published_iso else "",
-                })
+                        "title": title if title else "No title available",
+                        "link": link if link else "#",
+                        "source": source if source else "Unknown source",
+                        "published": published_iso if published_iso else "",
+                    })
             except Exception as item_error:
                 logger.warning(f"Error processing news item for {symbol}: {item_error}")
                 # Continue processing other items
         
         return articles
+    
+    try:
+        # Use the proxy rotation
+        return get_with_proxy_rotation(fetch_news_with_session, symbol)
     except Exception as e:
         logger.exception(f"Error fetching news for {symbol}: {e}")
         # Return empty list instead of raising an exception
