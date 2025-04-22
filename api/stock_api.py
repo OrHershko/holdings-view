@@ -2,17 +2,14 @@ import logging
 from functools import lru_cache
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Query, Body, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 import yfinance as yf
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
-import math
-import json
 import os
-from datetime import datetime, timedelta
 
 # --- Database Setup (SQLAlchemy) ---
-from sqlalchemy import create_engine, Column, String, Float, Integer, MetaData, Table
+from sqlalchemy import create_engine, Column, String, Float
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from sqlalchemy.exc import SQLAlchemyError
 from dotenv import load_dotenv
@@ -217,15 +214,15 @@ def get_stock_info(symbol):
     
     asset_type = determine_asset_type(symbol, info)
 
-        return {
-            "symbol": symbol,
-        "name": info.get("shortName") or info.get("longName") or symbol,
-        "price": current_price,
-            "change": change,
-            "changePercent": change_percent,
-        "marketCap": info.get("marketCap"),
-        "volume": info.get("regularMarketVolume") or info.get("volume"),
-        "type": asset_type
+    return {
+        "symbol": symbol,
+    "name": info.get("shortName") or info.get("longName") or symbol,
+    "price": current_price,
+        "change": change,
+        "changePercent": change_percent,
+    "marketCap": info.get("marketCap"),
+    "volume": info.get("regularMarketVolume") or info.get("volume"),
+    "type": asset_type
     }
 
 def determine_asset_type(symbol: str, info: Dict[str, Any]) -> str:

@@ -1,9 +1,8 @@
-fastapi
-uvicorn
-yfinance
-pydantic
-pandas
-python-dotenv # For local environment variables
-SQLAlchemy
-psycopg2-binary # PostgreSQL driver
-alembic
+fastapi==0.109.1
+uvicorn==0.27.0
+yfinance==0.2.36
+pydantic==2.6.1
+python-dotenv==1.0.1
+SQLAlchemy==2.0.25
+psycopg2-binary==2.9.9
+alembic==1.13.1
