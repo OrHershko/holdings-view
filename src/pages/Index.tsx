@@ -12,8 +12,9 @@ import AddStockDialog from '@/components/AddStockDialog';
 import EditHoldingDialog from '@/components/EditHoldingDialog';
 import { Button } from '@/components/ui/button';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import UploadCsvDialog from '@/components/UploadCsvDialog';
+
 
 // Create a client
 const queryClientInstance = new QueryClient({
@@ -57,35 +58,29 @@ const Index = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDragEnd = async (event: any) => {
-    const { active, over } = event;
-    
-    if (active.id !== over.id) {
-      try {
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://holdings-view.vercel.app/api';
-        const response = await fetch(`${API_BASE_URL}/portfolio/reorder`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            fromId: active.id,
-            toId: over.id,
-          }),
-        });
+  
+const handleDragEnd = async (event: any) => {
+  const { active, over } = event;
+  if (!over || active.id === over.id) return;
 
-        if (!response.ok) {
-          throw new Error('Failed to reorder holdings');
-        }
+  const oldIndex = portfolioData?.holdings.findIndex(h => h.symbol === active.id);
+  const newIndex = portfolioData?.holdings.findIndex(h => h.symbol === over.id);
+  if (oldIndex === -1 || newIndex === -1) return;
 
-        // Invalidate and refetch portfolio data
-        await queryClient.invalidateQueries({ queryKey: ['portfolio'] });
-        await queryClient.refetchQueries({ queryKey: ['portfolio'], type: 'active' }); // Force refetch after drag
-      } catch (error) {
-        console.error('Error reordering holdings:', error);
-      }
-    }
-  };
+  const sortedHoldings = [...portfolioData.holdings].sort((a, b) => a.position - b.position);
+  const newOrder = arrayMove(sortedHoldings, oldIndex, newIndex);
+
+  await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/portfolio/reorder`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      orderedSymbols: newOrder.map(h => h.symbol),
+    }),
+  });
+
+  await queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+};
+
 
   const handleAddStockClose = useCallback(async () => {
     setIsAddStockDialogOpen(false);

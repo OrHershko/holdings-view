@@ -145,8 +145,8 @@ class NewsArticle(BaseModel):
     published: str
 
 class ReorderRequest(BaseModel):
-    fromId: str
-    toId: str
+    orderedSymbols: List[str]
+
 
 class WatchlistItemResponse(BaseModel):
     symbol: str
@@ -375,26 +375,18 @@ def delete_holding(symbol: str, db: Session = Depends(get_db)):
         print(f"Database error deleting holding: {e}")
         raise HTTPException(status_code=500, detail="Database error deleting holding.")
 
-    
 @app.post("/api/portfolio/reorder")
-def reorder_holdings(request: ReorderRequest, db: Session = Depends(get_db)):
-    try:
-        # Get both holdings
-        from_holding = db.query(HoldingDB).filter(HoldingDB.symbol == request.fromId).first()
-        to_holding = db.query(HoldingDB).filter(HoldingDB.symbol == request.toId).first()
+def reorder_portfolio(request: ReorderRequest, db: Session = Depends(get_db)):
+    holdings = db.query(HoldingDB).all()
+    holding_map = {h.symbol: h for h in holdings}
 
-        if not from_holding or not to_holding:
-            raise HTTPException(status_code=404, detail="One or both holdings not found")
+    for i, symbol in enumerate(request.orderedSymbols):
+        if symbol in holding_map:
+            holding_map[symbol].position = i
 
-        # Swap their position
-        from_holding.position, to_holding.position = to_holding.position, from_holding.position
+    db.commit()
+    return {"message": "Portfolio reordered"}
 
-        db.commit()
-        return {"message": "Holdings reordered successfully"}
-    except SQLAlchemyError as e:
-        db.rollback()
-        print(f"Database error reordering holdings: {e}")
-        raise HTTPException(status_code=500, detail="Database error reordering holdings")
 
 @app.post("/api/portfolio/upload")
 def upload_portfolio(holdings: List[HoldingCreate], db: Session = Depends(get_db)):
