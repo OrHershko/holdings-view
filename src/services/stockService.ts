@@ -12,8 +12,19 @@ let proxyList: Array<{
 let currentProxyIndex = 0;
 let proxyTestInProgress = false;
 
-// Proxy API URL (authenticated proxies)
-const PROXY_API_URL = 'https://proxy.webshare.io/api/v2/proxy/list/download/kxkgyctgbykbnahljvrzowjwldvklpohgnokguua/-/any/username/direct/-/';
+// Hardcoded WebShare proxies (instead of fetching to avoid CORS issues)
+const WEBSHARE_PROXIES = [
+  '38.153.152.244:9594:osafnyak:gzyxyy5u6imp',
+  '86.38.234.176:6630:osafnyak:gzyxyy5u6imp',
+  '173.211.0.148:6641:osafnyak:gzyxyy5u6imp',
+  '161.123.152.115:6360:osafnyak:gzyxyy5u6imp',
+  '216.10.27.159:6837:osafnyak:gzyxyy5u6imp',
+  '154.36.110.199:6853:osafnyak:gzyxyy5u6imp',
+  '45.151.162.198:6600:osafnyak:gzyxyy5u6imp',
+  '185.199.229.156:7492:osafnyak:gzyxyy5u6imp',
+  '185.199.228.220:7300:osafnyak:gzyxyy5u6imp',
+  '185.199.231.45:8382:osafnyak:gzyxyy5u6imp'
+];
 
 // Function to test if a proxy is working
 const testProxy = async (proxy: typeof proxyList[0]): Promise<boolean> => {
@@ -45,50 +56,33 @@ const testProxy = async (proxy: typeof proxyList[0]): Promise<boolean> => {
   }
 };
 
-// Function to fetch and refresh the proxy list
-const refreshProxyList = async (): Promise<void> => {
-  // Avoid running multiple refreshes simultaneously
-  if (proxyTestInProgress) return;
-  
+// Function to load and parse the hardcoded proxy list
+const loadProxyList = (): void => {
   try {
     proxyTestInProgress = true;
     updateProxyState({ testing: true });
-    console.log('Fetching and testing authenticated proxies...');
+    console.log('Loading authenticated proxies...');
     
-    const response = await fetch(PROXY_API_URL);
-    if (!response.ok) {
-      console.error('Failed to fetch proxy list');
-      return;
-    }
-    
-    const text = await response.text();
-    // Parse the text response into authenticated proxies
+    // Parse the hardcoded proxy list
     // Format: IP:PORT:USERNAME:PASSWORD
-    const candidateProxies = text.split('\n')
-      .map(line => {
-        const parts = line.trim().split(':');
-        if (parts.length === 4) {
-          return {
-            host: parts[0],
-            port: parts[1],
-            username: parts[2],
-            password: parts[3],
-            formatted: `${parts[0]}:${parts[1]}`
-          };
-        }
-        return null;
-      })
-      .filter(proxy => proxy !== null) as typeof proxyList;
+    const parsedProxies = WEBSHARE_PROXIES.map(line => {
+      const parts = line.trim().split(':');
+      if (parts.length === 4) {
+        return {
+          host: parts[0],
+          port: parts[1],
+          username: parts[2],
+          password: parts[3],
+          formatted: `${parts[0]}:${parts[1]}`
+        };
+      }
+      return null;
+    }).filter(proxy => proxy !== null) as typeof proxyList;
     
-    console.log(`Found ${candidateProxies.length} potential proxies, testing...`);
-    updateProxyState({ countTesting: candidateProxies.length });
+    console.log(`Found ${parsedProxies.length} authenticated proxies`);
     
-    // For authenticated proxies, we'll consider them all valid without testing
-    // since they're from a paid service and likely to be reliable
-    const validProxies = candidateProxies;
-    
-    if (validProxies.length > 0) {
-      proxyList = validProxies;
+    if (parsedProxies.length > 0) {
+      proxyList = parsedProxies;
       console.log(`Loaded ${proxyList.length} authenticated proxies`);
       
       // Update the global state with the proxy count
@@ -98,14 +92,14 @@ const refreshProxyList = async (): Promise<void> => {
         testing: false
       });
     } else {
-      console.warn('No working proxies found');
+      console.warn('No proxies found in the hardcoded list');
       updateProxyState({ 
         count: 0,
         testing: false
       });
     }
   } catch (error) {
-    console.error('Error refreshing proxy list:', error);
+    console.error('Error loading proxy list:', error);
     updateProxyState({ testing: false });
   } finally {
     proxyTestInProgress = false;
@@ -157,19 +151,15 @@ const getNextProxy = (): typeof proxyList[0] | null => {
 };
 
 // Initialize by loading the proxy list
-refreshProxyList().then(() => {
-  console.log('Proxy list initialized');
-  // Refresh the list every hour
-  setInterval(refreshProxyList, 60 * 60 * 1000);
-  
-  // Add a global function to manually refresh proxies
-  if (typeof window !== 'undefined') {
-    (window as any).refreshProxies = () => {
-      console.log('Manually refreshing proxies...');
-      refreshProxyList();
-    };
-  }
-});
+loadProxyList();
+
+// Add a global function to manually refresh proxies
+if (typeof window !== 'undefined') {
+  (window as any).refreshProxies = () => {
+    console.log('Manually refreshing proxies...');
+    loadProxyList();
+  };
+}
 
 // Read base URL from environment variable with robust fallback strategy
 // 1. Use VITE_API_BASE_URL from env if available
@@ -228,7 +218,7 @@ const fetchWithProxy = async (url: string, options: RequestInit = {}): Promise<R
   // If we have no proxies and we're not currently testing, try to refresh
   if (proxyList.length === 0 && !proxyTestInProgress) {
     console.log('No proxies available, triggering refresh');
-    refreshProxyList();
+    loadProxyList();
   }
   
   // Try without proxy first
