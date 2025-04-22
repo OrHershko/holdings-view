@@ -164,15 +164,20 @@ class SearchResponse(BaseModel):
     results: List[dict]
 
 # --- CORS Setup --- 
-FRONTEND_URL = os.getenv("FRONTEND_URL")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://holdings-view.vercel.app")
 
 app = FastAPI()
 
-origins = [FRONTEND_URL]
+# Allow both production and development URLs
+allowed_origins = [
+    "https://holdings-view.vercel.app",  # Production URL
+    "http://localhost:8080",             # Local development
+    FRONTEND_URL                         # From environment variable
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
