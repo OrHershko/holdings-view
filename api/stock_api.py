@@ -52,8 +52,9 @@ def get_brightdata_session():
     # Mark this proxy as used now
     proxy_last_used = time.time()
     
-    # Format: {zone}.{token}:{token}@{host}:{port}
-    proxy_url = f"http://{BRIGHTDATA_ZONE}.{BRIGHTDATA_TOKEN}:{BRIGHTDATA_TOKEN}@{BRIGHTDATA_HOST}:{BRIGHTDATA_PORT}"
+    # Correct format for Brightdata proxy:
+    # Format: {token}:{token}@{zone}.{host}:{port}
+    proxy_url = f"http://{BRIGHTDATA_TOKEN}:{BRIGHTDATA_TOKEN}@{BRIGHTDATA_ZONE}.{BRIGHTDATA_HOST}:{BRIGHTDATA_PORT}"
     
     session = RequestsSession()
     session.proxies = {
