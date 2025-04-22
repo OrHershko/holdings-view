@@ -163,16 +163,12 @@ class HistoryResponse(BaseModel):
 class SearchResponse(BaseModel):
     results: List[dict]
 
-# --- CORS Setup --- (Moved imports earlier)
-# Read allowed origin from environment variable
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:8080")
+# --- CORS Setup --- 
+FRONTEND_URL = os.getenv("FRONTEND_URL")
 
 app = FastAPI()
 
-origins = [
-    "http://localhost:8080",
-    "http://localhost:5173"
-]
+origins = [FRONTEND_URL]
 
 app.add_middleware(
     CORSMiddleware,
@@ -186,8 +182,7 @@ app.add_middleware(
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- Helper Functions (keep get_stock_info, determine_asset_type etc.) ---
-# Make sure get_stock_info is defined before use
+# --- Helper Functions 
 @lru_cache()
 def get_stock_info(symbol):
     stock = yf.Ticker(symbol)
@@ -234,7 +229,6 @@ def determine_asset_type(symbol: str, info: Dict[str, Any]) -> str:
 
 # --- Refactored API Routes --- 
 
-# --- get_portfolio (Refactored Example) ---
 @app.get("/api/portfolio")
 def get_portfolio(db: Session = Depends(get_db)):
     try:
@@ -308,8 +302,6 @@ def get_portfolio(db: Session = Depends(get_db)):
     }
 
 
-# --- TODO: Refactor other endpoints similarly --- 
-# Placeholder implementations - NEED TO BE REFACTORED WITH DB LOGIC
 @app.post("/api/portfolio/add")
 def add_to_portfolio(holding_data: HoldingCreate, db: Session = Depends(get_db)):
     # Check if holding exists
@@ -376,6 +368,16 @@ def reorder_holdings(request: ReorderRequest, db: Session = Depends(get_db)):
         # Swap the holdings
         from_holding = holdings_dict[request.fromId]
         to_holding = holdings_dict[request.toId]
+        
+        # Store temporary values
+        temp_shares = from_holding.shares
+        temp_cost = from_holding.averageCost
+        
+        # Swap values
+        from_holding.shares = to_holding.shares
+        from_holding.averageCost = to_holding.averageCost
+        to_holding.shares = temp_shares
+        to_holding.averageCost = temp_cost
         
         # Update the database
         db.commit()
@@ -452,7 +454,6 @@ def add_to_watchlist(symbol: str, db: Session = Depends(get_db)):
     if db_symbol:
         return {"message": f"{symbol_upper} is already in watchlist"}
         
-    # Optional: Verify stock exists via get_stock_info here if desired
     
     new_watchlist_item = WatchlistDB(symbol=symbol_upper)
     try:
@@ -596,8 +597,4 @@ def get_stock_news(symbol: str):
 
 if __name__ == "__main__":
     import uvicorn
-    # Ensure tables are created before starting the server for local dev
-    # Base.metadata.create_all(bind=engine) 
-    # print("Database tables checked/created for local run.") 
-    # Might be better to run table creation separately or use migrations
     uvicorn.run(app, host="0.0.0.0", port=8000)
