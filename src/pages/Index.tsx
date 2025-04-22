@@ -191,7 +191,8 @@ const Index = () => {
                       ))}
                     </SortableContext>
                   </DndContext>
-                
+                </div>                  
+
               </div>
             </main>
           </div>
