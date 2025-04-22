@@ -27,114 +27,80 @@ tmp_dir = tempfile.gettempdir()
 yf.set_tz_cache_location(tmp_dir)
 print(f"Set yfinance cache location to: {tmp_dir}")
 
-WEBSHARE_PROXIES = [
-    {'host': '38.153.152.244', 'port': '9594', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'},
-    {'host': '86.38.234.176', 'port': '6630', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'},
-    {'host': '173.211.0.148', 'port': '6641', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'},
-    {'host': '161.123.152.115', 'port': '6360', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'},
-    {'host': '216.10.27.159', 'port': '6837', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'},
-    {'host': '154.36.110.199', 'port': '6853', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'},
-    {'host': '45.151.162.198', 'port': '6600', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'},
-    {'host': '185.199.229.156', 'port': '7492', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'},
-    {'host': '185.199.228.220', 'port': '7300', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'},
-    {'host': '185.199.231.45', 'port': '8382', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'}
-]
+# --- Proxy Configuration ---
+# Brightdata configuration
+BRIGHTDATA_TOKEN = "05e8031120b9846abb1b5e81bce95877a89181216fb7fdd86ac017efc5ed9c68"
+BRIGHTDATA_ZONE = "brd"  # Zone identifier
+BRIGHTDATA_HOST = "brd.superproxy.io"
+BRIGHTDATA_PORT = "22225"
 
-# Track current proxy index
-current_proxy_index = 0
-# Track proxies with too many 429 errors
-rate_limited_proxies = set()
-# Track last time we used each proxy
-proxy_last_used = {}
+# Track last time we used the proxy
+proxy_last_used = time.time()
 
-def get_next_proxy_session():
-    global current_proxy_index
+def get_brightdata_session():
+    global proxy_last_used
     
-    # Cycle through proxies in sequence, skipping rate-limited ones
-    attempts = 0
-    while attempts < len(WEBSHARE_PROXIES):
-        proxy = WEBSHARE_PROXIES[current_proxy_index]
-        current_proxy_index = (current_proxy_index + 1) % len(WEBSHARE_PROXIES)
-        attempts += 1
-        
-        host = proxy['host']
-        
-        # Skip if proxy is rate limited
-        if host in rate_limited_proxies:
-            continue
-            
-        # Check if proxy needs cooling off time (if used in the last 3 seconds)
-        current_time = time.time()
-        if host in proxy_last_used:
-            time_since_last_use = current_time - proxy_last_used[host]
-            if time_since_last_use < 3:  # 3 second cooling period
-                time.sleep(3 - time_since_last_use)  # Wait until cooling period is over
-        
-        # Mark this proxy as used now
-        proxy_last_used[host] = time.time()
-        
-        proxy_url = f"http://{proxy['username']}:{proxy['password']}@{proxy['host']}:{proxy['port']}"
-
-        session = Session()
-        session.proxies = {
-            "http": proxy_url,
-            "https": proxy_url,
-        }
-
-        # Add timeouts to prevent hanging connections
-        session.timeout = 10  # Flat 10 second timeout
-
-        # Configure retries with longer backoff for 429 errors
-        retries = Retry(
-            total=3, 
-            backoff_factor=2.0,  # Longer delay between retries
-            status_forcelist=[500, 502, 503, 504],  # Don't retry 429 - we'll handle them specially
-            respect_retry_after_header=True
-        )
-        adapter = HTTPAdapter(max_retries=retries)
-        session.mount("http://", adapter)
-        session.mount("https://", adapter)
-
-        return session, host
+    # Ensure we don't overwhelm the proxy with requests
+    current_time = time.time()
+    time_since_last_use = current_time - proxy_last_used
+    if time_since_last_use < 1:  # 1 second minimum between requests
+        time.sleep(1 - time_since_last_use)
     
-    # If all proxies are rate limited, clear the list and try again
-    if len(rate_limited_proxies) == len(WEBSHARE_PROXIES):
-        logger.warning("All proxies are rate limited, clearing and retrying")
-        rate_limited_proxies.clear()
-        time.sleep(5)  # Wait 5 seconds before trying again
-        return get_next_proxy_session()
+    # Mark this proxy as used now
+    proxy_last_used = time.time()
     
-    # Should never reach here if we have at least one proxy
-    raise Exception("No proxies available")
+    # Format: {zone}.{token}:{token}@{host}:{port}
+    proxy_url = f"http://{BRIGHTDATA_ZONE}.{BRIGHTDATA_TOKEN}:{BRIGHTDATA_TOKEN}@{BRIGHTDATA_HOST}:{BRIGHTDATA_PORT}"
+    
+    session = Session()
+    session.proxies = {
+        "http": proxy_url,
+        "https": proxy_url,
+    }
 
-# Try all proxies before giving up
-def get_with_proxy_rotation(func, *args, **kwargs):
-    # Try each proxy in sequence
-    for _ in range(len(WEBSHARE_PROXIES) * 2):  # Try twice through the proxy list
+    # Add timeouts to prevent hanging connections
+    session.timeout = 10  # Flat 10 second timeout
+
+    # Configure retries with backoff
+    retries = Retry(
+        total=3, 
+        backoff_factor=2.0,
+        status_forcelist=[500, 502, 503, 504],
+        respect_retry_after_header=True
+    )
+    adapter = HTTPAdapter(max_retries=retries)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+
+    return session
+
+# Simplified function that just uses Brightdata
+def get_with_proxy(func, *args, **kwargs):
+    max_attempts = 3
+    
+    for attempt in range(max_attempts):
         try:
-            # Get a new session with next proxy
-            session, host = get_next_proxy_session()
+            # Get a fresh session
+            session = get_brightdata_session()
             # Call the function with the session
             return func(*args, session=session, **kwargs)
         except Exception as e:
             error_str = str(e).lower()
             # Check if this is a rate limiting error
             if "429" in error_str or "too many requests" in error_str:
-                # Mark this proxy as rate limited
-                rate_limited_proxies.add(host)
-                logger.warning(f"Proxy {host} rate limited. Marked for cooldown.")
-            
-            logger.warning(f"Proxy error: {str(e)}. Trying next proxy.")
-            # Add a small delay before trying next proxy
-            time.sleep(1)
-            continue
+                logger.warning(f"Rate limited by Brightdata. Waiting before retry.")
+                time.sleep(5 * (attempt + 1))  # Progressive backoff
+            else:
+                logger.warning(f"Proxy error: {str(e)}. Attempt {attempt+1} of {max_attempts}")
+                time.sleep(2)  # Brief pause before retry
+                
+            # If this is our last attempt, raise the exception
+            if attempt == max_attempts - 1:
+                logger.error("All proxy attempts failed")
+                raise HTTPException(status_code=500, detail="Proxy service unavailable")
     
-    # If all proxies fail, raise an HTTP exception
-    logger.error("All proxies failed or were rate limited")
-    raise HTTPException(status_code=500, detail="All proxies failed")
-
-# Initialize with first proxy
-session, _ = get_next_proxy_session()
+# Initialize session
+session = get_brightdata_session()
 
 # Load environment variables from .env and .env.local
 load_dotenv()  # Load .env first
@@ -354,7 +320,7 @@ def get_stock_info(symbol):
         }
         
     # Use proxy rotation to try all proxies
-    return get_with_proxy_rotation(fetch_with_session, symbol)
+    return get_with_proxy(fetch_with_session, symbol)
 
 def determine_asset_type(symbol: str, info: Dict[str, Any]) -> str:
     quote_type = info.get("quoteType", "").lower()
@@ -665,7 +631,7 @@ def get_history(
         
     try:
         # Use proxy rotation system
-        return get_with_proxy_rotation(fetch_history_with_session, symbol, period, interval)
+        return get_with_proxy(fetch_history_with_session, symbol, period, interval)
     except Exception as e:
         logger.error(f"Error fetching history for {symbol}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch history for {symbol}")
@@ -686,7 +652,7 @@ def search_stocks_endpoint(query: str = Query(..., min_length=1)):
     except Exception:
         try:
             # If direct lookup fails, try alternate search with proxy rotation
-            return get_with_proxy_rotation(search_with_session, query)
+            return get_with_proxy(search_with_session, query)
         except Exception:
             # If all methods fail, return empty list
             return []
@@ -755,7 +721,7 @@ def get_stock_news(symbol: str):
     
     try:
         # Use the proxy rotation
-        return get_with_proxy_rotation(fetch_news_with_session, symbol)
+        return get_with_proxy(fetch_news_with_session, symbol)
     except Exception as e:
         logger.exception(f"Error fetching news for {symbol}: {e}")
         # Return empty list instead of raising an exception
