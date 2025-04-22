@@ -1,4 +1,0 @@
-fastapi
-yfinance
-uvicorn
-pydantic

@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+yfinance
+pydantic
+pandas
+python-dotenv # For local environment variables
+SQLAlchemy
+psycopg2-binary # PostgreSQL driver
+alembic

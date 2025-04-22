@@ -1,7 +1,12 @@
 import { StockData, StockHistoryData, PortfolioHolding, PortfolioSummary, NewsArticle } from '@/api/stockApi';
 import { SMA, RSI } from 'technicalindicators';
 
-const API_BASE_URL = 'http://localhost:8000/api'; // Define the base URL for the backend
+// Read base URL from environment variable
+// For local dev, set VITE_API_BASE_URL=http://localhost:8000/api in a .env file
+// Vercel will use environment variables set in its dashboard
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+
+console.log(`Using API Base URL: ${API_BASE_URL}`); // Log for debugging
 
 export const fetchStock = async (symbol: string): Promise<StockData> => {
   const response = await fetch(`${API_BASE_URL}/stock/${symbol}`);
@@ -12,8 +17,8 @@ export const fetchStock = async (symbol: string): Promise<StockData> => {
     symbol: data.symbol || 'N/A',
     name: data.name || 'N/A',
     price: data.price || 0,
-    change: data.regularMarketChange || 0,
-    changePercent: data.regularMarketChangePercent || 0,
+    change: data.change || 0,
+    changePercent: data.changePercent || 0,
     marketCap: data.marketCap || 0,
     volume: data.volume || 0,
   };
