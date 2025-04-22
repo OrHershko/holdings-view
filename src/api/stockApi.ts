@@ -6,6 +6,7 @@ export interface StockData {
   changePercent: number;
   marketCap: number;
   volume: number;
+  type?: string;
 }
 
 export interface PortfolioHolding {

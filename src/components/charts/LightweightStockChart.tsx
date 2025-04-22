@@ -31,90 +31,95 @@ const toSeriesData = (raw: any[]) => {
   const rsi: LineData[] = [];
   const sma150: LineData[] = []; // Add SMA 150 array
 
-  // Process each data point defensively
-  raw.forEach((p) => {
-    if (!p || typeof p !== 'object') {
-      console.warn('Invalid data point:', p);
-      return; // Skip this point
-    }
-
-    // Ensure we have a valid date
-    let time: UTCTimestamp;
-    try {
-      if (!p.date) {
-        console.warn('Missing date in data point:', p);
-        return; // Skip point without date
+  try {
+    // Process each data point defensively
+    for (let i = 0; i < raw.length; i++) {
+      const p = raw[i];
+      if (!p || typeof p !== 'object') {
+        console.warn('Invalid data point:', p);
+        continue; // Skip this point
       }
-      
-      const timestamp = new Date(p.date).getTime() / 1000;
-      
-      if (isNaN(timestamp)) {
-        console.warn('Invalid date:', p.date);
-        return; // Skip this point
-      }
-      
-      time = timestamp as UTCTimestamp;
-    } catch (e) {
-      console.warn('Error parsing date:', p.date, e);
-      return; // Skip this point
-    }
 
-    // Only add candle if all required values are present and are numbers
-    try {
-      if (
-        p.open != null && !isNaN(Number(p.open)) &&
-        p.high != null && !isNaN(Number(p.high)) &&
-        p.low != null && !isNaN(Number(p.low)) &&
-        p.close != null && !isNaN(Number(p.close))
-      ) {
-        candles.push({
-          time,
-          open: Number(p.open),
-          high: Number(p.high),
-          low: Number(p.low),
-          close: Number(p.close)
-        });
-      }
-    } catch (candleError) {
-      console.warn('Error adding candle point:', candleError);
-    }
-
-    // Only add volume if it's a valid number
-    try {
-      if (p.volume != null && !isNaN(Number(p.volume))) {
-        const closeValue = p.close != null ? Number(p.close) : 0;
-        const openValue = p.open != null ? Number(p.open) : 0;
+      // Ensure we have a valid date
+      let time: UTCTimestamp;
+      try {
+        if (!p.date) {
+          console.warn('Missing date in data point:', p);
+          continue; // Skip point without date
+        }
         
-        volume.push({
-          time,
-          value: Number(p.volume),
-          color: (closeValue >= openValue) ? 'rgba(52, 211, 153, 0.5)' : 'rgba(239, 68, 68, 0.5)',
-        });
+        const timestamp = new Date(p.date).getTime() / 1000;
+        
+        if (isNaN(timestamp)) {
+          console.warn('Invalid date:', p.date);
+          continue; // Skip this point
+        }
+        
+        time = timestamp as UTCTimestamp;
+      } catch (e) {
+        console.warn('Error parsing date:', p.date, e);
+        continue; // Skip this point
       }
-    } catch (volumeError) {
-      console.warn('Error adding volume point:', volumeError);
-    }
 
-    // Only add RSI if it's a valid number
-    try {
-      if (p.rsi != null && !isNaN(Number(p.rsi))) {
-        rsi.push({ time, value: Number(p.rsi) });
+      // Only add candle if all required values are present and are numbers
+      try {
+        if (
+          p.open != null && !isNaN(Number(p.open)) &&
+          p.high != null && !isNaN(Number(p.high)) &&
+          p.low != null && !isNaN(Number(p.low)) &&
+          p.close != null && !isNaN(Number(p.close))
+        ) {
+          candles.push({
+            time,
+            open: Number(p.open),
+            high: Number(p.high),
+            low: Number(p.low),
+            close: Number(p.close)
+          });
+        }
+      } catch (candleError) {
+        console.warn('Error adding candle point:', candleError);
       }
-    } catch (rsiError) {
-      console.warn('Error adding RSI point:', rsiError);
-    }
-    
-    // Only add SMA 150 if it's a valid number
-    try {
-      if (p.sma150 != null && !isNaN(Number(p.sma150))) {
-        sma150.push({ time, value: Number(p.sma150) });
-      }
-    } catch (smaError) {
-      console.warn('Error adding SMA point:', smaError);
-    }
-  });
 
-  // Final sanity check - ensure all arrays are actually arrays
+      // Only add volume if it's a valid number
+      try {
+        if (p.volume != null && !isNaN(Number(p.volume))) {
+          const closeValue = p.close != null ? Number(p.close) : 0;
+          const openValue = p.open != null ? Number(p.open) : 0;
+          
+          volume.push({
+            time,
+            value: Number(p.volume),
+            color: (closeValue >= openValue) ? 'rgba(52, 211, 153, 0.5)' : 'rgba(239, 68, 68, 0.5)',
+          });
+        }
+      } catch (volumeError) {
+        console.warn('Error adding volume point:', volumeError);
+      }
+
+      // Only add RSI if it's a valid number
+      try {
+        if (p.rsi != null && !isNaN(Number(p.rsi))) {
+          rsi.push({ time, value: Number(p.rsi) });
+        }
+      } catch (rsiError) {
+        console.warn('Error adding RSI point:', rsiError);
+      }
+      
+      // Only add SMA 150 if it's a valid number
+      try {
+        if (p.sma150 != null && !isNaN(Number(p.sma150))) {
+          sma150.push({ time, value: Number(p.sma150) });
+        }
+      } catch (smaError) {
+        console.warn('Error adding SMA point:', smaError);
+      }
+    }
+  } catch (error) {
+    console.error('Error processing chart data:', error);
+  }
+
+  // Final sanity check - ensure all return values are definitely arrays
   return { 
     candles: Array.isArray(candles) ? candles : [],  
     volume: Array.isArray(volume) ? volume : [], 
@@ -138,16 +143,16 @@ const LightweightStockChart: React.FC<Props> = ({ data }) => {
     
     try {
       // Log received data prop
-      console.log("LightweightStockChart: Received data prop:", data);
+      console.log("LightweightStockChart: Received data prop type:", Array.isArray(data) ? 'array' : typeof data);
 
-      // Validate data
-      if (!Array.isArray(data) || data.length === 0) {
+      // Validate data - ensure it's an array
+      if (!data || !Array.isArray(data) || data.length === 0) {
         console.warn('No valid chart data provided:', data);
         // Clear chart if data becomes invalid/empty
-        candleRef.current?.setData([]);
-        volumeRef.current?.setData([]);
-        rsiRef.current?.setData([]);
-        sma150Ref.current?.setData([]);
+        if (candleRef.current) try { candleRef.current.setData([]); } catch (e) { console.error(e); }
+        if (volumeRef.current) try { volumeRef.current.setData([]); } catch (e) { console.error(e); }
+        if (rsiRef.current) try { rsiRef.current.setData([]); } catch (e) { console.error(e); }
+        if (sma150Ref.current) try { sma150Ref.current.setData([]); } catch (e) { console.error(e); }
         return;
       }
 
@@ -203,82 +208,54 @@ const LightweightStockChart: React.FC<Props> = ({ data }) => {
       }
 
       try {
-        /* Deep process data to ensure safe use */
-        console.log("Processing data:", data.length, "points");
+        // Create a defensive copy of data to ensure we're working with an array
+        const safeData = Array.isArray(data) ? [...data] : [];
         
-        // Extra validation of chart input data
-        if (!Array.isArray(data)) {
-          console.error("Data is not an array:", data);
-          return;
-        }
+        console.log("Processing data:", safeData.length, "points");
         
-        // Process the data very defensively
-        const { candles, volume, rsi, sma150 } = toSeriesData(
-          Array.isArray(data) ? data : []
-        );
+        // Process the data very defensively using our helper
+        const { candles, volume, rsi, sma150 } = toSeriesData(safeData);
+        
+        // Create empty arrays if any of the results are undefined or not arrays
+        const safeCandles = Array.isArray(candles) ? candles : [];
+        const safeVolume = Array.isArray(volume) ? volume : [];
+        const safeRsi = Array.isArray(rsi) ? rsi : [];
+        const safeSma150 = Array.isArray(sma150) ? sma150 : [];
         
         // Log data before setting it on the chart series
-        console.log("LightweightStockChart: Prepared candle data:", 
-          candles?.length || 0, "points, is array:", Array.isArray(candles));
-        console.log("LightweightStockChart: Prepared volume data:", 
-          volume?.length || 0, "points, is array:", Array.isArray(volume));
+        console.log("Prepared candle data:", safeCandles.length, "points");
+        console.log("Prepared volume data:", safeVolume.length, "points");
         
-        // Here's where t.slice might be called - make extra sure we're dealing with arrays
-        
-        // Only set data if we have valid arrays with at least one element
-        if (candleRef.current && Array.isArray(candles) && candles.length > 0) {
+        // Now set the data on each series with try/catch for each operation
+        if (candleRef.current) {
           try {
-            candleRef.current.setData(candles);
+            candleRef.current.setData(safeCandles);
           } catch (e) {
             console.error("Error setting candle data:", e);
           }
-        } else if (candleRef.current) {
-          try {
-            candleRef.current.setData([]);
-          } catch (e) {
-            console.error("Error clearing candle data:", e);
-          }
         }
         
-        if (volumeRef.current && Array.isArray(volume) && volume.length > 0) {
+        if (volumeRef.current) {
           try {
-            volumeRef.current.setData(volume);
+            volumeRef.current.setData(safeVolume);
           } catch (e) {
             console.error("Error setting volume data:", e);
           }
-        } else if (volumeRef.current) {
-          try {
-            volumeRef.current.setData([]);
-          } catch (e) {
-            console.error("Error clearing volume data:", e);
-          }
         }
         
-        if (rsiRef.current && Array.isArray(rsi) && rsi.length > 0) {
+        if (rsiRef.current) {
           try {
-            rsiRef.current.setData(rsi);
+            rsiRef.current.setData(safeRsi);
           } catch (e) {
             console.error("Error setting RSI data:", e);
           }
-        } else if (rsiRef.current) {
-          try {
-            rsiRef.current.setData([]);
-          } catch (e) {
-            console.error("Error clearing RSI data:", e);
-          }
         }
         
-        if (sma150Ref.current && Array.isArray(sma150) && sma150.length > 0) {
+        if (sma150Ref.current) {
           try {
-            sma150Ref.current.setData(sma150);
+            sma150Ref.current.setData(safeSma150);
           } catch (e) {
             console.error("Error setting SMA150 data:", e);
-          }
-        } else if (sma150Ref.current) {
-          try {
-            sma150Ref.current.setData([]);
-          } catch (e) {
-            console.error("Error clearing SMA150 data:", e);
           }
         }
         
@@ -311,7 +288,15 @@ const LightweightStockChart: React.FC<Props> = ({ data }) => {
   }, [data]);
 
   /* cleanup once */
-  useEffect(() => () => chartRef.current?.remove(), []);
+  useEffect(() => () => {
+    if (chartRef.current) {
+      try {
+        chartRef.current.remove();
+      } catch (e) {
+        console.error("Error removing chart:", e);
+      }
+    }
+  }, []);
 
   return <div ref={divRef} style={{ width: '100%' }} />;
 };

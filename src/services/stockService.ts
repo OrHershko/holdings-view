@@ -1,27 +1,83 @@
 import { StockData, StockHistoryData, PortfolioHolding, PortfolioSummary, NewsArticle } from '@/api/stockApi';
 import { SMA, RSI } from 'technicalindicators';
 
-// Read base URL from environment variable
-// For local dev, set VITE_API_BASE_URL=http://localhost:8000/api in a .env file
-// Vercel will use environment variables set in its dashboard
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://holdings-view.vercel.app/api';
+// Read base URL from environment variable with robust fallback strategy
+// 1. Use VITE_API_BASE_URL from env if available
+// 2. Check if we're in development mode (import.meta.env.DEV)
+// 3. Use deployment URL as final fallback
+const getApiBaseUrl = () => {
+  // Check if we have a defined API base URL in environment
+  const envApiUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envApiUrl) {
+    return envApiUrl;
+  }
+  
+  // In development mode, use localhost
+  if (import.meta.env.DEV) {
+    return 'http://localhost:8000/api';
+  }
+  
+  // Production fallback
+  return 'https://holdings-view.vercel.app/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 console.log(`Using API Base URL: ${API_BASE_URL}`); // Log for debugging
 
+// Helper function to handle API errors consistently
+const handleApiError = (error: any, context: string): never => {
+  // Try to extract error details if available
+  let errorMessage = 'API request failed';
+  
+  try {
+    if (error.response) {
+      // The request was made and server responded with error status
+      const status = error.response.status;
+      const data = error.response.data;
+      errorMessage = `API error (${status}): ${JSON.stringify(data) || 'No error details'}`;
+    } else if (error.request) {
+      // Request was made but no response received
+      errorMessage = 'API server didn\'t respond';
+    } else {
+      // Something else happened
+      errorMessage = error.message || 'Unknown API error';
+    }
+  } catch (e) {
+    // Error handling itself failed
+    errorMessage = `${error}`;
+  }
+  
+  // Log with context and full error
+  console.error(`${context} - ${errorMessage}`, error);
+  throw new Error(errorMessage);
+};
+
 export const fetchStock = async (symbol: string): Promise<StockData> => {
-  const response = await fetch(`${API_BASE_URL}/stock/${symbol}`);
-  if (!response.ok) throw new Error('Failed to fetch stock data');
-  const data = await response.json();
-  // Basic validation/transformation if needed
-  return {
-    symbol: data.symbol || 'N/A',
-    name: data.name || 'N/A',
-    price: data.price || 0,
-    change: data.change || 0,
-    changePercent: data.changePercent || 0,
-    marketCap: data.marketCap || 0,
-    volume: data.volume || 0,
-  };
+  try {
+    const response = await fetch(`${API_BASE_URL}/stock/${symbol}`);
+    
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Failed to read error response');
+      throw new Error(`Failed to fetch stock data: ${response.status} ${errorText}`);
+    }
+    
+    const data = await response.json();
+    
+    // Basic validation/transformation if needed
+    return {
+      symbol: data.symbol || 'N/A',
+      name: data.name || 'N/A',
+      price: data.price || 0,
+      change: data.change || 0,
+      changePercent: data.changePercent || 0,
+      marketCap: data.marketCap || 0,
+      volume: data.volume || 0,
+      type: data.type || 'stock'
+    };
+  } catch (error) {
+    return handleApiError(error, `fetchStock(${symbol})`);
+  }
 };
 
 export const fetchStockHistory = async (
@@ -33,15 +89,33 @@ export const fetchStockHistory = async (
   const fetchPeriod = getExtendedPeriod(period, 200); // Add enough for SMA 200
 
   try {
+    console.log(`Fetching history for ${symbol} with period=${fetchPeriod}, interval=${interval} from ${API_BASE_URL}`);
+    
     // Use the extended period for fetching data
     const response = await fetch(`${API_BASE_URL}/history/${symbol}?period=${fetchPeriod}&interval=${interval}`);
+    
     if (!response.ok) {
-      const errorBody = await response.text();
+      const errorBody = await response.text().catch(() => 'Failed to read error response');
       console.error("API Error Response:", errorBody);
-      throw new Error(`Failed to fetch stock history: ${response.statusText}`);
+      throw new Error(`Failed to fetch stock history: ${response.status} ${response.statusText}`);
     }
-    const rawData = await response.json(); // Rename to rawData
-
+    
+    let rawData;
+    try {
+      rawData = await response.json();
+      console.log(`Received history response for ${symbol}:`, 
+                  Object.keys(rawData || {}), 
+                  `History items: ${rawData?.history?.length || 0}`);
+                  
+      // Debug first history item to see actual structure               
+      if (rawData?.history?.[0]) {
+        console.log(`First history item structure:`, Object.keys(rawData.history[0]));
+      }
+    } catch (parseError) {
+      console.error("JSON parse error:", parseError);
+      throw new Error(`Failed to parse history data: ${parseError.message}`);
+    }
+    
     // Validate the response data
     if (!rawData || !rawData.history || !Array.isArray(rawData.history) || rawData.history.length === 0) {
       console.warn(`Empty or invalid history data received for ${symbol}`);
@@ -53,14 +127,29 @@ export const fetchStockHistory = async (
     }
 
     // --- Calculate indicators using the FULL fetched data ---
+    // Extract close values, handling different case formats that might come from the backend
     const allCloseValues = rawData.history.map((h: any) => {
-      // Ensure each value is a valid number
-      const close = typeof h.Close === 'number' ? h.Close : parseFloat(h.Close);
+      // Ensure each value is a valid number and handle both lowercase and uppercase field names
+      if (!h || typeof h !== 'object') return null;
+      
+      // Try both lowercase (preferred) and uppercase (fallback) field names
+      const closeValue = h.close !== undefined ? h.close : 
+                         h.Close !== undefined ? h.Close : null;
+                         
+      const close = typeof closeValue === 'number' ? closeValue : 
+                    (closeValue !== null ? parseFloat(String(closeValue)) : null);
+                    
       return isNaN(close) ? null : close;
     }).filter((v: any) => v !== null); // Remove null values
 
-    const allDates = rawData.history.map((h: any) => h.Date); // Keep all dates for reference if needed
+    // Get dates with field name fallbacks
+    const allDates = rawData.history.map((h: any) => 
+      h.date || h.Date || null
+    ).filter(Boolean); // Keep all dates for reference if needed
+    
     const totalFetchedPoints = rawData.history.length;
+    
+    console.log(`Processed ${totalFetchedPoints} history points for ${symbol}, valid close values: ${allCloseValues.length}`);
 
     // Safety check - if we don't have valid close values, return empty data
     if (allCloseValues.length === 0) {
@@ -133,19 +222,29 @@ export const fetchStockHistory = async (
     // Safely extract numeric values with null fallbacks
     const safeNumber = (value: any): number | null => {
       if (value === undefined || value === null) return null;
-      const num = typeof value === 'number' ? value : parseFloat(value);
+      const num = typeof value === 'number' ? value : parseFloat(String(value));
       return isNaN(num) ? null : num;
+    };
+    
+    // Helper to handle both lowercase and uppercase field names from API
+    const getField = (obj: any, field: string): any => {
+      if (!obj || typeof obj !== 'object') return null;
+      // Try lowercase first (preferred), then uppercase
+      return obj[field.toLowerCase()] !== undefined ? obj[field.toLowerCase()] :
+             obj[field.charAt(0).toUpperCase() + field.slice(1)] !== undefined ? 
+             obj[field.charAt(0).toUpperCase() + field.slice(1)] : null;
     };
 
     // --- Transform final sliced data ---
-    return {
-      dates: finalHistory.map((h: any) => h.Date || null),
-      prices: finalHistory.map((h: any) => safeNumber(h.Close)),
-      volume: finalHistory.map((h: any) => safeNumber(h.Volume)),
-      open: finalHistory.map((h: any) => safeNumber(h.Open)),
-      close: finalHistory.map((h: any) => safeNumber(h.Close)),
-      high: finalHistory.map((h: any) => safeNumber(h.High)),
-      low: finalHistory.map((h: any) => safeNumber(h.Low)),
+    const result = {
+      // Handle both lowercase and uppercase field names from the API
+      dates: finalHistory.map((h: any) => getField(h, 'date')),
+      prices: finalHistory.map((h: any) => safeNumber(getField(h, 'close'))),
+      volume: finalHistory.map((h: any) => safeNumber(getField(h, 'volume'))),
+      open: finalHistory.map((h: any) => safeNumber(getField(h, 'open'))),
+      close: finalHistory.map((h: any) => safeNumber(getField(h, 'close'))),
+      high: finalHistory.map((h: any) => safeNumber(getField(h, 'high'))),
+      low: finalHistory.map((h: any) => safeNumber(getField(h, 'low'))),
       // Slice the indicator results as well
       sma20: smaResultsFull.sma20.slice(startIndex),
       sma50: smaResultsFull.sma50.slice(startIndex),
@@ -154,6 +253,9 @@ export const fetchStockHistory = async (
       sma200: smaResultsFull.sma200.slice(startIndex),
       rsi: rsiFull.slice(startIndex),
     };
+    
+    console.log(`Returning ${result.dates.length} data points for ${symbol}`);
+    return result;
   } catch (error) {
     console.error(`Error in fetchStockHistory for ${symbol}:`, error);
     // Return empty data on error

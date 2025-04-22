@@ -7,6 +7,8 @@ import yfinance as yf
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import os
+import math
+from datetime import datetime
 
 # --- Database Setup (SQLAlchemy) ---
 from sqlalchemy import create_engine, Column, String, Float
@@ -507,38 +509,99 @@ def get_history(
     interval: str = Query("1d", description="Data interval")
 ):
     try:
+        # Log request information
+        logger.info(f"History request for {symbol} with period={period}, interval={interval}")
+        
+        # Fetch data from yfinance
         stock = yf.Ticker(symbol)
         hist = stock.history(period=period, interval=interval)
 
+        # Log response shape
+        logger.info(f"History response for {symbol}: {len(hist)} rows, columns: {list(hist.columns)}")
+
         if hist.empty:
+            logger.warning(f"Empty history data for {symbol}")
             raise HTTPException(status_code=404, detail=f"No historical data found for {symbol}")
             
-        # Convert the DataFrame to a list of records
+        # Convert the DataFrame to a list of records - with explicit type checking
         history = []
         previous_close = None
         
         for idx, row in hist.iterrows():
-            current_close = float(row['Close'])
-            change = current_close - previous_close if previous_close is not None else 0
-            change_percent = (change / previous_close * 100) if previous_close is not None else 0
+            try:
+                # Handle potentially missing or non-numeric data
+                current_close = float(row['Close']) if pd.notna(row['Close']) else None
+                if current_close is None:
+                    logger.warning(f"Missing Close price for {symbol} at {idx}")
+                    continue
+                    
+                # Calculate changes safely
+                if previous_close is not None:
+                    change = current_close - previous_close
+                    change_percent = (change / previous_close * 100) if previous_close != 0 else 0
+                else:
+                    change = 0
+                    change_percent = 0
+                
+                # Format the date consistently for both local and Vercel environments
+                try:
+                    # First try the standard ISO format conversion
+                    date_str = idx.isoformat()
+                    
+                    # Ensure the date string is valid by parsing it back
+                    # This helps catch any serialization issues
+                    datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                except (AttributeError, ValueError, TypeError) as date_error:
+                    # Fallback for any date parsing issues
+                    logger.warning(f"Date formatting error for {symbol}: {date_error}, using string representation")
+                    try:
+                        # Convert to string and then try to parse as datetime
+                        date_str = str(idx)
+                        parsed_date = pd.to_datetime(date_str)
+                        date_str = parsed_date.isoformat()
+                    except Exception:
+                        # Last resort: use the current time
+                        logger.error(f"Could not format date for {symbol}, using current time")
+                        date_str = datetime.now().isoformat()
+                
+                # Convert all values explicitly to ensure proper JSON serialization
+                record = {
+                    'date': date_str,  # Using our robustly formatted date string
+                    'open': float(row['Open']) if pd.notna(row['Open']) else None,
+                    'high': float(row['High']) if pd.notna(row['High']) else None,
+                    'low': float(row['Low']) if pd.notna(row['Low']) else None,
+                    'close': current_close,
+                    'volume': int(row['Volume']) if pd.notna(row['Volume']) else 0,
+                    'change': float(change) if pd.notna(change) else 0,
+                    'changePercent': float(change_percent) if pd.notna(change_percent) else 0
+                }
+                history.append(record)
+                previous_close = current_close
+            except Exception as row_error:
+                logger.error(f"Error processing row for {symbol}: {row_error}, row data: {row}")
+                continue  # Skip problematic rows rather than failing the whole request
+
+        if not history:
+            logger.warning(f"No valid history data points for {symbol}")
+            raise HTTPException(status_code=404, detail=f"No valid data points found for {symbol}")
             
-            record = {
-                'Date': idx.isoformat(),
-                'Open': float(row['Open']),
-                'High': float(row['High']),
-                'Low': float(row['Low']),
-                'Close': current_close,
-                'Volume': int(row['Volume']),
-                'Change': change,
-                'ChangePercent': change_percent
-            }
-            history.append(record)
-            previous_close = current_close
+        # Log a sample of the formatted data
+        if history:
+            logger.info(f"Sample history data point for {symbol}: {history[0]}")
+            
+        # Ensure all numeric values are valid for JSON serialization
+        for item in history:
+            for key, value in item.items():
+                if isinstance(value, (int, float)) and (math.isnan(value) or math.isinf(value)):
+                    item[key] = None
 
         return {"symbol": symbol, "history": history}
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
-        logger.error(f"Error fetching history for {symbol}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch history for {symbol}")
+        logger.exception(f"Error fetching history for {symbol}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch history for {symbol}: {str(e)}")
 
 @app.get("/api/search")
 def search_stocks_endpoint(query: str = Query(..., min_length=1)):
