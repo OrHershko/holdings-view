@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
-import { fetchStock, fetchStockHistory, fetchPortfolio, fetchWatchlist, searchStocks } from '@/services/stockService';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { fetchStock, fetchStockHistory, fetchPortfolio, fetchWatchlist, searchStocks, addToWatchlist, removeFromWatchlist, WatchlistItem } from '@/services/stockService';
 
 export interface StockHistoryData {
   dates: string[];
@@ -49,12 +49,15 @@ export function usePortfolio() {
   return useQuery({
     queryKey: ['portfolio'],
     queryFn: fetchPortfolio,
-    staleTime: 60000, // 1 minute
+    staleTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    gcTime: 0
   });
 }
 
 export function useWatchlist() {
-  return useQuery({
+  return useQuery<WatchlistItem[]>({
     queryKey: ['watchlist'],
     queryFn: fetchWatchlist,
     staleTime: 60000, // 1 minute
@@ -67,5 +70,31 @@ export function useStockSearch(query: string) {
     queryFn: () => searchStocks(query),
     enabled: query.length > 1,
     staleTime: 60000, // 1 minute
+  });
+}
+
+// --- Watchlist Mutations ---
+
+export function useAddToWatchlist() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (symbol: string) => addToWatchlist(symbol),
+    onSuccess: () => {
+      // Invalidate and refetch watchlist query after successful add
+      queryClient.invalidateQueries({ queryKey: ['watchlist'] });
+    },
+    // Optional: Add onError for error handling
+  });
+}
+
+export function useRemoveFromWatchlist() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (symbol: string) => removeFromWatchlist(symbol),
+    onSuccess: () => {
+      // Invalidate and refetch watchlist query after successful remove
+      queryClient.invalidateQueries({ queryKey: ['watchlist'] });
+    },
+    // Optional: Add onError for error handling
   });
 }

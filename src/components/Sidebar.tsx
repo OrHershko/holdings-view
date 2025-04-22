@@ -15,7 +15,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, setActiveItem }) => {
         <div className="h-10 w-10 bg-purple-600 rounded-lg flex items-center justify-center">
           <LucideIcons.LayoutGrid className="h-6 w-6 text-white" />
         </div>
-        <span className="text-xl font-bold">Portfolio</span>
+        <span className="text-xl font-bold">Portfolio Manager</span>
       </div>
       
       <nav className="flex-1 py-4">

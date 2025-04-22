@@ -1,73 +1,144 @@
-# Welcome to your Lovable project
 
-## Project info
+```markdown
+# FinVest iOS Focus
 
-**URL**: https://lovable.dev/projects/417dec17-7f4d-4ce9-b320-d281c7a0a2e6
+A modern financial investment platform built with React, TypeScript, and Vite, featuring advanced charting capabilities and a comprehensive UI component system.
 
-## How can I edit this code?
+## 🚀 Features
 
-There are several ways of editing your application.
+- **Modern Tech Stack**: Built with React 18, TypeScript, and Vite
+- **Advanced Charting**: Integration with ApexCharts and Lightweight Charts for financial data visualization
+- **Comprehensive UI Components**: Utilizing Radix UI primitives for accessible and customizable components
+- **Responsive Design**: Built with Tailwind CSS for a mobile-first approach
+- **Form Handling**: Integrated with React Hook Form and Zod for robust form validation
+- **State Management**: Uses TanStack Query for efficient server state management
+- **Routing**: Implements React Router for seamless navigation
+- **Theme Support**: Dark/Light mode support via next-themes
+- **Technical Analysis**: Includes technical indicators for financial analysis
 
-**Use Lovable**
+## 🛠️ Technology Stack
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/417dec17-7f4d-4ce9-b320-d281c7a0a2e6) and start prompting.
+- **Core**:
+  - React 18.3
+  - TypeScript
+  - Vite
 
-Changes made via Lovable will be committed automatically to this repo.
+- **UI Components**:
+  - Radix UI (comprehensive component library)
+  - Tailwind CSS
+  - Class Variance Authority
+  - Lucide React (icons)
 
-**Use your preferred IDE**
+- **Data Visualization**:
+  - ApexCharts
+  - Lightweight Charts
+  - Recharts
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- **State Management & Data Fetching**:
+  - TanStack Query (React Query)
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- **Form Management**:
+  - React Hook Form
+  - Zod (validation)
 
-Follow these steps:
+- **Development Tools**:
+  - ESLint
+  - TypeScript ESLint
+  - PostCSS
+  - Autoprefixer
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## 📦 Project Structure
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+finvest-ios-focus/
+├── src/                    # Source code
+│   ├── components/         # Reusable UI components
+│   ├── pages/             # Application pages/routes
+│   ├── services/          # API and service integrations
+│   ├── hooks/             # Custom React hooks
+│   ├── api/               # API related code
+│   ├── lib/               # Utility functions and helpers
+│   ├── data/             # Static data and constants
+│   └── types.ts          # TypeScript type definitions
+├── public/                # Static assets
+├── api/                   # Backend API (if applicable)
+└── vite.config.ts        # Vite configuration
 ```
 
-**Edit a file directly in GitHub**
+## 🚀 Getting Started
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+1. **Clone the repository**
+   ```bash
+   git clone [repository-url]
+   ```
 
-**Use GitHub Codespaces**
+2. **Install dependencies**
+   ```bash
+   npm install
+   # or
+   bun install
+   ```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+3. **Start the development server**
+   ```bash
+   npm run dev
+   # or
+   bun dev
+   ```
 
-## What technologies are used for this project?
+4. **Build for production**
+   ```bash
+   npm run build
+   # or
+   bun run build
+   ```
 
-This project is built with:
+## 📝 Available Scripts
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- `dev`: Start development server
+- `build`: Build for production
+- `build:dev`: Build for development
+- `lint`: Run ESLint
+- `preview`: Preview production build
 
-## How can I deploy this project?
+## 🎨 UI Components
 
-Simply open [Lovable](https://lovable.dev/projects/417dec17-7f4d-4ce9-b320-d281c7a0a2e6) and click on Share -> Publish.
+The project uses a comprehensive set of UI components from Radix UI, including:
 
-## Can I connect a custom domain to my Lovable project?
+- Accordion
+- Alert Dialog
+- Avatar
+- Checkbox
+- Dialog
+- Dropdown Menu
+- Navigation Menu
+- Progress
+- Tabs
+- Toast
+- And many more...
 
-Yes, you can!
+## 🔧 Configuration Files
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+- `tsconfig.json`: TypeScript configuration
+- `tailwind.config.ts`: Tailwind CSS configuration
+- `postcss.config.js`: PostCSS configuration
+- `eslint.config.js`: ESLint configuration
+- `vite.config.ts`: Vite configuration
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 📞 Support
+
+For support, please open an issue in the GitHub repository or contact the development team.
+```
+

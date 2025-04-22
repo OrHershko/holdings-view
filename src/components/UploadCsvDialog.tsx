@@ -1,0 +1,185 @@
+import React, { useState, useRef } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/use-toast';
+import Papa from 'papaparse'; // Import papaparse
+
+interface UploadCsvDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+interface HoldingCsvRow {
+  Symbol: string;
+  Shares: string; // Read as string first for parsing
+  AverageCost: string; // Read as string first for parsing
+}
+
+const UploadCsvDialog: React.FC<UploadCsvDialogProps> = ({ isOpen, onClose }) => {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      setSelectedFile(event.target.files[0]);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      toast({
+        title: 'No file selected',
+        description: 'Please select a CSV file to upload.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    Papa.parse<HoldingCsvRow>(selectedFile, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const parsedData = results.data;
+        const errors = results.errors;
+
+        if (errors.length > 0) {
+          console.error('CSV Parsing errors details:', errors);
+          const errorMessages = errors.slice(0, 3).map(e => `Row ${e.row}: ${e.message}`).join('; '); // Show first 3 errors
+          toast({
+            title: 'CSV Parsing Error',
+            description: `Errors found: ${errorMessages}${errors.length > 3 ? '...' : ''}`,
+            variant: 'destructive',
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        // Validate required headers and format data
+        const requiredHeaders = ['Symbol', 'Shares', 'AverageCost'];
+        const actualHeaders = Object.keys(parsedData[0] || {});
+        if (!requiredHeaders.every(header => actualHeaders.includes(header))) {
+             toast({
+               title: 'Invalid CSV Headers',
+               description: 'CSV must contain columns: Symbol, Shares, AverageCost',
+               variant: 'destructive',
+             });
+             setIsLoading(false);
+             return;
+        }
+
+        const formattedHoldings = parsedData.map(row => ({
+          symbol: row.Symbol?.trim(),
+          shares: parseFloat(row.Shares),
+          averageCost: parseFloat(row.AverageCost),
+        })).filter(h => h.symbol && !isNaN(h.shares) && h.shares > 0 && !isNaN(h.averageCost) && h.averageCost >= 0);
+
+        if (formattedHoldings.length === 0) {
+          toast({
+            title: 'No valid holdings found',
+            description: 'Check the CSV data and format.',
+            variant: 'destructive',
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        // --- Send data to backend --- 
+        try {
+          const response = await fetch('http://localhost:8000/api/portfolio/upload', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(formattedHoldings),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Failed to upload holdings' }));
+            throw new Error(errorData.detail || 'Failed to upload holdings');
+          }
+
+          toast({
+            title: 'Upload Successful',
+            description: `${formattedHoldings.length} holdings uploaded.`,
+          });
+
+          setSelectedFile(null); // Clear selection
+          if (fileInputRef.current) {
+            fileInputRef.current.value = ''; // Reset file input
+          }
+          onClose(); // Close dialog and trigger refetch via parent
+
+        } catch (error: any) {
+          toast({
+            title: 'Error Uploading CSV',
+            description: error.message || 'Something went wrong during the upload.',
+            variant: 'destructive',
+          });
+        } finally {
+          setIsLoading(false);
+        }
+      },
+      error: (error) => {
+        console.error('CSV Parsing error:', error);
+        toast({
+          title: 'Error Reading File',
+          description: error.message,
+          variant: 'destructive',
+        });
+        setIsLoading(false);
+      }
+    });
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Upload Holdings CSV</DialogTitle>
+          <DialogDescription>
+            Upload a CSV file with columns: Symbol, Shares, AverageCost. This will overwrite your current portfolio.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="csvFile" className="text-right">
+              CSV File
+            </Label>
+            <Input
+              id="csvFile"
+              type="file"
+              accept=".csv"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="col-span-3"
+            />
+          </div>
+          {selectedFile && (
+            <p className="text-sm text-muted-foreground col-start-2 col-span-3">
+              Selected: {selectedFile.name}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground col-start-2 col-span-3">
+            Expected columns: Symbol, Shares, AverageCost
+          </p>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
+            Cancel
+          </Button>
+          <Button onClick={handleUpload} disabled={isLoading || !selectedFile}>
+            {isLoading ? 'Uploading...' : 'Upload'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default UploadCsvDialog; 

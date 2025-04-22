@@ -183,19 +183,18 @@ export const fetchPortfolio = async (): Promise<{
   const response = await fetch(`${API_BASE_URL}/portfolio`);
   if (!response.ok) throw new Error('Failed to fetch portfolio');
   const data = await response.json();
-  // Assuming the backend returns data in the expected structure
-  // Add more robust mapping and error handling as needed
-  const holdings: PortfolioHolding[] = data.portfolio?.map((item: any) => ({
+  const holdings: PortfolioHolding[] = data.holdings?.map((item: any) => ({
     symbol: item.symbol,
-    name: item.name || 'N/A', // Fetch name if not provided
+    name: item.name || 'N/A',
     shares: item.shares || 0,
-    averageCost: item.averageCost || 0, // Fetch avg cost if not provided
-    currentPrice: item.price || 0,
+    averageCost: item.averageCost || 0,
+    currentPrice: item.currentPrice || 0,
     change: item.change || 0,
     changePercent: item.changePercent || 0,
-    value: (item.shares || 0) * (item.price || 0),
-    gain: ((item.price || 0) - (item.averageCost || 0)) * (item.shares || 0),
-    gainPercent: item.averageCost ? (((item.price || 0) / item.averageCost) - 1) * 100 : 0,
+    value: item.value || 0,
+    gain: item.gain || 0,
+    gainPercent: item.gainPercent || 0,
+    type: item.type || 'stock'
   })) || [];
 
   const summary: PortfolioSummary = data.summary || {
@@ -209,20 +208,43 @@ export const fetchPortfolio = async (): Promise<{
   return { holdings, summary };
 };
 
-export const fetchWatchlist = async (): Promise<StockData[]> => {
+// --- Watchlist Types (Define if needed or use inline) ---
+export interface WatchlistItem {
+  symbol: string;
+  name?: string;
+  price?: number;
+  change?: number;
+  changePercent?: number;
+}
+
+// --- Watchlist Service Functions ---
+
+export const fetchWatchlist = async (): Promise<WatchlistItem[]> => {
   const response = await fetch(`${API_BASE_URL}/watchlist`);
   if (!response.ok) throw new Error('Failed to fetch watchlist');
-  const data = await response.json();
-  // Assuming backend returns a list of stock-like objects
-  return data.watchlist?.map((item: any) => ({
-    symbol: item.symbol,
-    name: item.name || 'N/A',
-    price: item.price || 0,
-    change: item.change || 0,
-    changePercent: item.changePercent || 0,
-    marketCap: item.marketCap || 0,
-    volume: item.volume || 0,
-  })) || [];
+  return response.json();
+};
+
+export const addToWatchlist = async (symbol: string): Promise<{ message: string }> => {
+  const response = await fetch(`${API_BASE_URL}/watchlist/add/${symbol.toUpperCase()}`, {
+    method: 'POST',
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to add to watchlist' }));
+    throw new Error(errorData.detail || 'Failed to add to watchlist');
+  }
+  return response.json();
+};
+
+export const removeFromWatchlist = async (symbol: string): Promise<{ message: string }> => {
+  const response = await fetch(`${API_BASE_URL}/watchlist/remove/${symbol.toUpperCase()}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Failed to remove from watchlist' }));
+    throw new Error(errorData.detail || 'Failed to remove from watchlist');
+  }
+  return response.json();
 };
 
 export const searchStocks = async (query: string): Promise<StockData[]> => {

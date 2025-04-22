@@ -19,6 +19,7 @@ export interface PortfolioHolding {
   value: number;
   gain: number;
   gainPercent: number;
+  type: 'stock' | 'etf' | 'crypto' | 'cash';
 }
 
 export interface PortfolioSummary {
