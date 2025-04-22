@@ -172,10 +172,10 @@ const Index = () => {
                     onDragEnd={handleDragEnd}
                   >
                     <SortableContext
-                      items={portfolioData?.holdings.map(h => h.symbol) || []}
+                      items={portfolioData?.holdings.slice().sort((a, b) => a.position - b.position).map(h => h.symbol) || []}
                       strategy={verticalListSortingStrategy}
                     >
-                      {portfolioData?.holdings.map((holding) => (
+                      {portfolioData?.holdings.slice().sort((a, b) => a.position - b.position).map((holding) => (
                         <StockCard
                           key={holding.symbol}
                           id={holding.symbol}

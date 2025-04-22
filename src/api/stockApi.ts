@@ -10,6 +10,7 @@ export interface StockData {
 }
 
 export interface PortfolioHolding {
+  position: number;
   symbol: string;
   name: string;
   shares: number;
