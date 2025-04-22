@@ -2,7 +2,6 @@ import React, { useState, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import Papa from 'papaparse'; // Import papaparse
 
@@ -140,7 +139,7 @@ const UploadCsvDialog: React.FC<UploadCsvDialogProps> = ({ isOpen, onClose }) =>
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] p-6">
         <DialogHeader>
           <DialogTitle>Upload Holdings CSV</DialogTitle>
           <DialogDescription>
@@ -155,32 +154,32 @@ const UploadCsvDialog: React.FC<UploadCsvDialogProps> = ({ isOpen, onClose }) =>
               accept=".csv"
               ref={fileInputRef}
               onChange={handleFileChange}
-              className="col-span-3"
+              className="col-span-4"
             />
           </div>
           {selectedFile && (
-            <p className="text-sm text-muted-foreground col-start-2 col-span-3">
+            <p className="text-sm text-muted-foreground">
               Selected: {selectedFile.name}
             </p>
           )}
-          <p className="text-xs text-muted-foreground col-start-2 col-span-3">
+          <p className="text-xs text-muted-foreground">
             Expected columns: Symbol, Shares, AverageCost
           </p>
         </div>
-        <DialogFooter className="flex gap-2">
+        <DialogFooter className="sm:justify-end gap-2">
           <Button 
             type="button" 
             variant="outline" 
             onClick={onClose} 
             disabled={isLoading}
-            className="min-w-[100px]"
+            className="flex-1 sm:flex-initial"
           >
             Cancel
           </Button>
           <Button 
             onClick={handleUpload} 
             disabled={isLoading || !selectedFile}
-            className="min-w-[100px]"
+            className="flex-1 sm:flex-initial"
           >
             {isLoading ? 'Uploading...' : 'Upload'}
           </Button>
