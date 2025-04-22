@@ -172,6 +172,13 @@ const StockChart: React.FC<StockChartProps> = ({
     });
   }, [data]);
 
+  // Debug log outside of JSX
+  useEffect(() => {
+    if (chartData.length > 0) {
+      console.log("StockChart: Prepared chartData:", chartData);
+    }
+  }, [chartData]);
+
   if (isLoading) {
     return (
       <Card className="ios-card w-full max-w-[95vw] mx-auto">
@@ -271,8 +278,6 @@ const StockChart: React.FC<StockChartProps> = ({
           </div>
         </div>
         <div className="mb-4">
-          {/* Log chartData before passing to child */}
-          {console.log("StockChart: Passing chartData to LightweightStockChart:", chartData)}
           <LightweightStockChart
             data={chartData}
           />

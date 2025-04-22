@@ -25,11 +25,13 @@ const toSeriesData = (raw: any[]) => {
     return { candles: [], volume: [], rsi: [], sma150: [] };
   }
 
+  // Create empty arrays for chart data
   const candles: CandlestickData[] = [];
   const volume: HistogramData[] = [];
   const rsi: LineData[] = [];
   const sma150: LineData[] = []; // Add SMA 150 array
 
+  // Process each data point defensively
   raw.forEach((p) => {
     if (!p || typeof p !== 'object') {
       console.warn('Invalid data point:', p);
@@ -39,53 +41,86 @@ const toSeriesData = (raw: any[]) => {
     // Ensure we have a valid date
     let time: UTCTimestamp;
     try {
-      time = (new Date(p.date).getTime() / 1000) as UTCTimestamp;
-      if (isNaN(time)) {
+      if (!p.date) {
+        console.warn('Missing date in data point:', p);
+        return; // Skip point without date
+      }
+      
+      const timestamp = new Date(p.date).getTime() / 1000;
+      
+      if (isNaN(timestamp)) {
         console.warn('Invalid date:', p.date);
         return; // Skip this point
       }
+      
+      time = timestamp as UTCTimestamp;
     } catch (e) {
       console.warn('Error parsing date:', p.date, e);
       return; // Skip this point
     }
 
     // Only add candle if all required values are present and are numbers
-    if (
-      p.open != null && !isNaN(Number(p.open)) &&
-      p.high != null && !isNaN(Number(p.high)) &&
-      p.low != null && !isNaN(Number(p.low)) &&
-      p.close != null && !isNaN(Number(p.close))
-    ) {
-      candles.push({
-        time,
-        open: Number(p.open),
-        high: Number(p.high),
-        low: Number(p.low),
-        close: Number(p.close)
-      });
+    try {
+      if (
+        p.open != null && !isNaN(Number(p.open)) &&
+        p.high != null && !isNaN(Number(p.high)) &&
+        p.low != null && !isNaN(Number(p.low)) &&
+        p.close != null && !isNaN(Number(p.close))
+      ) {
+        candles.push({
+          time,
+          open: Number(p.open),
+          high: Number(p.high),
+          low: Number(p.low),
+          close: Number(p.close)
+        });
+      }
+    } catch (candleError) {
+      console.warn('Error adding candle point:', candleError);
     }
 
     // Only add volume if it's a valid number
-    if (p.volume != null && !isNaN(Number(p.volume))) {
-      volume.push({
-        time,
-        value: Number(p.volume),
-        color: (p.close >= p.open) ? 'rgba(52, 211, 153, 0.5)' : 'rgba(239, 68, 68, 0.5)',
-      });
+    try {
+      if (p.volume != null && !isNaN(Number(p.volume))) {
+        const closeValue = p.close != null ? Number(p.close) : 0;
+        const openValue = p.open != null ? Number(p.open) : 0;
+        
+        volume.push({
+          time,
+          value: Number(p.volume),
+          color: (closeValue >= openValue) ? 'rgba(52, 211, 153, 0.5)' : 'rgba(239, 68, 68, 0.5)',
+        });
+      }
+    } catch (volumeError) {
+      console.warn('Error adding volume point:', volumeError);
     }
 
     // Only add RSI if it's a valid number
-    if (p.rsi != null && !isNaN(Number(p.rsi))) {
-      rsi.push({ time, value: Number(p.rsi) });
+    try {
+      if (p.rsi != null && !isNaN(Number(p.rsi))) {
+        rsi.push({ time, value: Number(p.rsi) });
+      }
+    } catch (rsiError) {
+      console.warn('Error adding RSI point:', rsiError);
     }
     
     // Only add SMA 150 if it's a valid number
-    if (p.sma150 != null && !isNaN(Number(p.sma150))) {
-      sma150.push({ time, value: Number(p.sma150) });
+    try {
+      if (p.sma150 != null && !isNaN(Number(p.sma150))) {
+        sma150.push({ time, value: Number(p.sma150) });
+      }
+    } catch (smaError) {
+      console.warn('Error adding SMA point:', smaError);
     }
   });
 
-  return { candles, volume, rsi, sma150 };
+  // Final sanity check - ensure all arrays are actually arrays
+  return { 
+    candles: Array.isArray(candles) ? candles : [],  
+    volume: Array.isArray(volume) ? volume : [], 
+    rsi: Array.isArray(rsi) ? rsi : [], 
+    sma150: Array.isArray(sma150) ? sma150 : [] 
+  };
 };
 
 /* ---------- component ---------- */
@@ -101,112 +136,174 @@ const LightweightStockChart: React.FC<Props> = ({ data }) => {
   useEffect(() => {
     if (!divRef.current) return;
     
-    // Log received data prop
-    console.log("LightweightStockChart: Received data prop:", data);
-
-    // Validate data
-    if (!Array.isArray(data) || data.length === 0) {
-      console.warn('No valid chart data provided:', data);
-      // Clear chart if data becomes invalid/empty
-      candleRef.current?.setData([]);
-      volumeRef.current?.setData([]);
-      rsiRef.current?.setData([]);
-      sma150Ref.current?.setData([]);
-      return;
-    }
-
-    /* create once */
-    if (!chartRef.current) {
-      chartRef.current = createChart(divRef.current, {
-        width: divRef.current.clientWidth,
-        height: 500,
-        layout: { background: { color: '#1E1E1E' }, textColor: '#D1D5DB' },
-        grid: { vertLines: { color: '#374151' }, horzLines: { color: '#374151' } },
-        rightPriceScale: { borderColor: '#4B5563' },
-        timeScale: { borderColor: '#4B5563', timeVisible: true, secondsVisible: false },
-        crosshair: { mode: 1 },
-      });
-
-      /* series */
-      candleRef.current = chartRef.current.addSeries(CandlestickSeries, {
-        upColor: '#34D399',
-        downColor: '#EF4444',
-        borderVisible: false,
-        wickUpColor: '#34D399',
-        wickDownColor: '#EF4444',
-      });
-
-      volumeRef.current = chartRef.current.addSeries(HistogramSeries, {
-        priceFormat: { type: 'volume' },
-        priceScaleId: 'vol',
-        lastValueVisible: false,
-        priceLineVisible: false,
-      });
-      chartRef.current.priceScale('vol').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
-
-      rsiRef.current = chartRef.current.addSeries(LineSeries, {
-        color: '#8B5CF6',
-        lineWidth: 1,
-        priceScaleId: 'rsi',
-      });
-      chartRef.current.priceScale('rsi').applyOptions({ scaleMargins: { top: 0.7, bottom: 0.1 } });
-      rsiRef.current.createPriceLine({ price: 70, color: '#EF4444', lineStyle: LineStyle.Dashed, lineWidth: 1 });
-      rsiRef.current.createPriceLine({ price: 30, color: '#34D399', lineStyle: LineStyle.Dashed, lineWidth: 1 });
-      
-      // Add SMA 150 series
-      sma150Ref.current = chartRef.current.addSeries(LineSeries, {
-        color: '#F59E0B', // Amber color for SMA 150
-        lineWidth: 2,
-        title: 'SMA 150', // Add title for the series
-      });
-    }
-
     try {
-      /* push data */
-      const { candles, volume, rsi, sma150 } = toSeriesData(data);
-      
-      // Log data before setting it on the chart series
-      console.log("LightweightStockChart: Setting candle data:", candles);
-      console.log("LightweightStockChart: Setting volume data:", volume);
-      console.log("LightweightStockChart: Setting rsi data:", rsi);
-      console.log("LightweightStockChart: Setting sma150 data:", sma150);
+      // Log received data prop
+      console.log("LightweightStockChart: Received data prop:", data);
 
-      // Only set data if we have valid arrays with at least one element
-      if (candleRef.current && candles.length > 0) {
-        candleRef.current.setData(candles);
-      } else if (candleRef.current) {
-        candleRef.current.setData([]); // Clear if empty
+      // Validate data
+      if (!Array.isArray(data) || data.length === 0) {
+        console.warn('No valid chart data provided:', data);
+        // Clear chart if data becomes invalid/empty
+        candleRef.current?.setData([]);
+        volumeRef.current?.setData([]);
+        rsiRef.current?.setData([]);
+        sma150Ref.current?.setData([]);
+        return;
       }
-      
-      if (volumeRef.current && volume.length > 0) {
-        volumeRef.current.setData(volume);
-      } else if (volumeRef.current) {
-        volumeRef.current.setData([]); // Clear if empty
+
+      /* create once */
+      if (!chartRef.current) {
+        try {
+          chartRef.current = createChart(divRef.current, {
+            width: divRef.current.clientWidth,
+            height: 500,
+            layout: { background: { color: '#1E1E1E' }, textColor: '#D1D5DB' },
+            grid: { vertLines: { color: '#374151' }, horzLines: { color: '#374151' } },
+            rightPriceScale: { borderColor: '#4B5563' },
+            timeScale: { borderColor: '#4B5563', timeVisible: true, secondsVisible: false },
+            crosshair: { mode: 1 },
+          });
+
+          /* series */
+          candleRef.current = chartRef.current.addSeries(CandlestickSeries, {
+            upColor: '#34D399',
+            downColor: '#EF4444',
+            borderVisible: false,
+            wickUpColor: '#34D399',
+            wickDownColor: '#EF4444',
+          });
+
+          volumeRef.current = chartRef.current.addSeries(HistogramSeries, {
+            priceFormat: { type: 'volume' },
+            priceScaleId: 'vol',
+            lastValueVisible: false,
+            priceLineVisible: false,
+          });
+          chartRef.current.priceScale('vol').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+
+          rsiRef.current = chartRef.current.addSeries(LineSeries, {
+            color: '#8B5CF6',
+            lineWidth: 1,
+            priceScaleId: 'rsi',
+          });
+          chartRef.current.priceScale('rsi').applyOptions({ scaleMargins: { top: 0.7, bottom: 0.1 } });
+          rsiRef.current.createPriceLine({ price: 70, color: '#EF4444', lineStyle: LineStyle.Dashed, lineWidth: 1 });
+          rsiRef.current.createPriceLine({ price: 30, color: '#34D399', lineStyle: LineStyle.Dashed, lineWidth: 1 });
+          
+          // Add SMA 150 series
+          sma150Ref.current = chartRef.current.addSeries(LineSeries, {
+            color: '#F59E0B', // Amber color for SMA 150
+            lineWidth: 2,
+            title: 'SMA 150', // Add title for the series
+          });
+        } catch (chartSetupError) {
+          console.error("Error creating chart:", chartSetupError);
+          return;
+        }
       }
-      
-      if (rsiRef.current && rsi.length > 0) {
-        rsiRef.current.setData(rsi);
-      } else if (rsiRef.current) {
-        rsiRef.current.setData([]); // Clear if empty
+
+      try {
+        /* Deep process data to ensure safe use */
+        console.log("Processing data:", data.length, "points");
+        
+        // Extra validation of chart input data
+        if (!Array.isArray(data)) {
+          console.error("Data is not an array:", data);
+          return;
+        }
+        
+        // Process the data very defensively
+        const { candles, volume, rsi, sma150 } = toSeriesData(
+          Array.isArray(data) ? data : []
+        );
+        
+        // Log data before setting it on the chart series
+        console.log("LightweightStockChart: Prepared candle data:", 
+          candles?.length || 0, "points, is array:", Array.isArray(candles));
+        console.log("LightweightStockChart: Prepared volume data:", 
+          volume?.length || 0, "points, is array:", Array.isArray(volume));
+        
+        // Here's where t.slice might be called - make extra sure we're dealing with arrays
+        
+        // Only set data if we have valid arrays with at least one element
+        if (candleRef.current && Array.isArray(candles) && candles.length > 0) {
+          try {
+            candleRef.current.setData(candles);
+          } catch (e) {
+            console.error("Error setting candle data:", e);
+          }
+        } else if (candleRef.current) {
+          try {
+            candleRef.current.setData([]);
+          } catch (e) {
+            console.error("Error clearing candle data:", e);
+          }
+        }
+        
+        if (volumeRef.current && Array.isArray(volume) && volume.length > 0) {
+          try {
+            volumeRef.current.setData(volume);
+          } catch (e) {
+            console.error("Error setting volume data:", e);
+          }
+        } else if (volumeRef.current) {
+          try {
+            volumeRef.current.setData([]);
+          } catch (e) {
+            console.error("Error clearing volume data:", e);
+          }
+        }
+        
+        if (rsiRef.current && Array.isArray(rsi) && rsi.length > 0) {
+          try {
+            rsiRef.current.setData(rsi);
+          } catch (e) {
+            console.error("Error setting RSI data:", e);
+          }
+        } else if (rsiRef.current) {
+          try {
+            rsiRef.current.setData([]);
+          } catch (e) {
+            console.error("Error clearing RSI data:", e);
+          }
+        }
+        
+        if (sma150Ref.current && Array.isArray(sma150) && sma150.length > 0) {
+          try {
+            sma150Ref.current.setData(sma150);
+          } catch (e) {
+            console.error("Error setting SMA150 data:", e);
+          }
+        } else if (sma150Ref.current) {
+          try {
+            sma150Ref.current.setData([]);
+          } catch (e) {
+            console.error("Error clearing SMA150 data:", e);
+          }
+        }
+        
+        if (chartRef.current) {
+          try {
+            chartRef.current.timeScale().fitContent();
+          } catch (e) {
+            console.error("Error fitting content to time scale:", e);
+          }
+        }
+      } catch (error) {
+        console.error('Error setting chart data:', error);
       }
-      
-      if (sma150Ref.current && sma150.length > 0) {
-        sma150Ref.current.setData(sma150);
-      } else if (sma150Ref.current) {
-        sma150Ref.current.setData([]); // Clear if empty
-      }
-      
-      if (chartRef.current) {
-        chartRef.current.timeScale().fitContent();
-      }
-    } catch (error) {
-      console.error('Error setting chart data:', error);
+    } catch (outerError) {
+      console.error("Unexpected error in chart effect:", outerError);
     }
 
     /* resize */
     const onResize = () => {
       if (chartRef.current && divRef.current) {
-        chartRef.current.resize(divRef.current.clientWidth, 500);
+        try {
+          chartRef.current.resize(divRef.current.clientWidth, 500);
+        } catch (e) {
+          console.error("Error resizing chart:", e);
+        }
       }
     };
     window.addEventListener('resize', onResize);
