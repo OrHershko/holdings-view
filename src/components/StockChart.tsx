@@ -113,21 +113,63 @@ const StockChart: React.FC<StockChartProps> = ({
   }, []);
 
   const chartData = useMemo(() => {
-    if (!data?.dates) return [];
-    return data.dates.map((date, index) => ({
-      date,
-      volume: data.volume?.[index] ?? 0,
-      sma20: data.sma20?.[index] ?? null,
-      sma50: data.sma50?.[index] ?? null,
-      sma100: data.sma100?.[index] ?? null,
-      sma150: data.sma150?.[index] ?? null,
-      sma200: data.sma200?.[index] ?? null,
-      rsi: data.rsi?.[index] ?? null,
-      high: data.high?.[index] ?? null,
-      low: data.low?.[index] ?? null,
-      open: data.open?.[index] ?? null,
-      close: data.close?.[index] ?? null,
-    }));
+    // Validate that data exists and has the required dates array
+    if (!data || !data.dates || !Array.isArray(data.dates) || data.dates.length === 0) {
+      console.warn('Invalid or empty chart data received', data);
+      return [];
+    }
+
+    // Ensure all arrays are actually arrays before mapping
+    const ensureArray = (arr: any): any[] => {
+      if (!arr || !Array.isArray(arr)) {
+        console.warn('Non-array data found in chart data:', arr);
+        return new Array(data.dates.length).fill(null);
+      }
+      return arr;
+    };
+
+    // Create safe arrays with same length as dates
+    const safeVolume = ensureArray(data.volume);
+    const safeSma20 = ensureArray(data.sma20);
+    const safeSma50 = ensureArray(data.sma50);
+    const safeSma100 = ensureArray(data.sma100);
+    const safeSma150 = ensureArray(data.sma150);
+    const safeSma200 = ensureArray(data.sma200);
+    const safeRsi = ensureArray(data.rsi);
+    const safeHigh = ensureArray(data.high);
+    const safeLow = ensureArray(data.low);
+    const safeOpen = ensureArray(data.open);
+    const safeClose = ensureArray(data.close);
+
+    // Map data safely with index checks
+    return data.dates.map((date, index) => {
+      // Ensure we don't go out of bounds on any array
+      const safeIndex = (arr: any[], idx: number) => {
+        return (idx >= 0 && idx < arr.length) ? arr[idx] : null;
+      };
+
+      // Use null for NaN values
+      const sanitizeValue = (value: any): number | null => {
+        if (value === undefined || value === null) return null;
+        const num = typeof value === 'number' ? value : Number(value);
+        return isNaN(num) ? null : num;
+      };
+
+      return {
+        date: date || new Date().toISOString(), // Fallback to current date if null
+        volume: sanitizeValue(safeIndex(safeVolume, index)) ?? 0,
+        sma20: sanitizeValue(safeIndex(safeSma20, index)),
+        sma50: sanitizeValue(safeIndex(safeSma50, index)),
+        sma100: sanitizeValue(safeIndex(safeSma100, index)),
+        sma150: sanitizeValue(safeIndex(safeSma150, index)),
+        sma200: sanitizeValue(safeIndex(safeSma200, index)),
+        rsi: sanitizeValue(safeIndex(safeRsi, index)),
+        high: sanitizeValue(safeIndex(safeHigh, index)),
+        low: sanitizeValue(safeIndex(safeLow, index)),
+        open: sanitizeValue(safeIndex(safeOpen, index)),
+        close: sanitizeValue(safeIndex(safeClose, index)),
+      };
+    });
   }, [data]);
 
   if (isLoading) {

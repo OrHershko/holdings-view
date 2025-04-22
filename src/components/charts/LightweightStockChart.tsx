@@ -19,33 +19,69 @@ interface Props {
 
 /* ---------- helper ---------- */
 const toSeriesData = (raw: any[]) => {
+  // Ensure raw is actually an array
+  if (!Array.isArray(raw)) {
+    console.error('Chart data is not an array:', raw);
+    return { candles: [], volume: [], rsi: [], sma150: [] };
+  }
+
   const candles: CandlestickData[] = [];
   const volume: HistogramData[] = [];
   const rsi: LineData[] = [];
   const sma150: LineData[] = []; // Add SMA 150 array
 
   raw.forEach((p) => {
-    const time = (new Date(p.date).getTime() / 1000) as UTCTimestamp;
-
-    if (p.open != null && p.high != null && p.low != null && p.close != null) {
-      candles.push({ time, open: p.open, high: p.high, low: p.low, close: p.close });
+    if (!p || typeof p !== 'object') {
+      console.warn('Invalid data point:', p);
+      return; // Skip this point
     }
 
-    if (p.volume != null) {
-      volume.push({
+    // Ensure we have a valid date
+    let time: UTCTimestamp;
+    try {
+      time = (new Date(p.date).getTime() / 1000) as UTCTimestamp;
+      if (isNaN(time)) {
+        console.warn('Invalid date:', p.date);
+        return; // Skip this point
+      }
+    } catch (e) {
+      console.warn('Error parsing date:', p.date, e);
+      return; // Skip this point
+    }
+
+    // Only add candle if all required values are present and are numbers
+    if (
+      p.open != null && !isNaN(Number(p.open)) &&
+      p.high != null && !isNaN(Number(p.high)) &&
+      p.low != null && !isNaN(Number(p.low)) &&
+      p.close != null && !isNaN(Number(p.close))
+    ) {
+      candles.push({
         time,
-        value: p.volume,
-        color: p.close >= p.open ? 'rgba(52, 211, 153, 0.5)' : 'rgba(239, 68, 68, 0.5)',
+        open: Number(p.open),
+        high: Number(p.high),
+        low: Number(p.low),
+        close: Number(p.close)
       });
     }
 
-    if (p.rsi != null) {
-      rsi.push({ time, value: p.rsi });
+    // Only add volume if it's a valid number
+    if (p.volume != null && !isNaN(Number(p.volume))) {
+      volume.push({
+        time,
+        value: Number(p.volume),
+        color: (p.close >= p.open) ? 'rgba(52, 211, 153, 0.5)' : 'rgba(239, 68, 68, 0.5)',
+      });
+    }
+
+    // Only add RSI if it's a valid number
+    if (p.rsi != null && !isNaN(Number(p.rsi))) {
+      rsi.push({ time, value: Number(p.rsi) });
     }
     
-    // Extract SMA 150 if available
-    if (p.sma150 != null) {
-      sma150.push({ time, value: p.sma150 });
+    // Only add SMA 150 if it's a valid number
+    if (p.sma150 != null && !isNaN(Number(p.sma150))) {
+      sma150.push({ time, value: Number(p.sma150) });
     }
   });
 
@@ -63,7 +99,13 @@ const LightweightStockChart: React.FC<Props> = ({ data }) => {
 
   /* build / update */
   useEffect(() => {
-    if (!divRef.current || data.length === 0) return;
+    if (!divRef.current) return;
+    
+    // Validate data
+    if (!Array.isArray(data) || data.length === 0) {
+      console.warn('No valid chart data provided:', data);
+      return;
+    }
 
     /* create once */
     if (!chartRef.current) {
@@ -111,13 +153,31 @@ const LightweightStockChart: React.FC<Props> = ({ data }) => {
       });
     }
 
-    /* push data */
-    const { candles, volume, rsi, sma150 } = toSeriesData(data);
-    candleRef.current!.setData(candles);
-    volumeRef.current!.setData(volume);
-    rsiRef.current!.setData(rsi);
-    sma150Ref.current!.setData(sma150); // Set SMA 150 data
-    chartRef.current.timeScale().fitContent();
+    try {
+      /* push data */
+      const { candles, volume, rsi, sma150 } = toSeriesData(data);
+      
+      // Only set data if we have valid arrays with at least one element
+      if (candles.length > 0) {
+        candleRef.current!.setData(candles);
+      }
+      
+      if (volume.length > 0) {
+        volumeRef.current!.setData(volume);
+      }
+      
+      if (rsi.length > 0) {
+        rsiRef.current!.setData(rsi);
+      }
+      
+      if (sma150.length > 0) {
+        sma150Ref.current!.setData(sma150);
+      }
+      
+      chartRef.current!.timeScale().fitContent();
+    } catch (error) {
+      console.error('Error setting chart data:', error);
+    }
 
     /* resize */
     const onResize = () => {
