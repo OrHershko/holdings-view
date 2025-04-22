@@ -1,20 +1,13 @@
 import React from 'react';
-import { Bell, ExternalLink, Menu, RefreshCw } from 'lucide-react';
+import { Bell, ExternalLink, Menu } from 'lucide-react';
 import { mockUser } from '@/data/mockData';
 import ActionButton from '@/components/ActionButton';
-import ProxyStatus from '@/components/ui/ProxyStatus';
 
 interface HeaderProps {
   toggleMobileSidebar: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ toggleMobileSidebar }) => {
-  const handleRefreshProxies = () => {
-    if (typeof window !== 'undefined' && (window as any).refreshProxies) {
-      (window as any).refreshProxies();
-    }
-  };
-
   return (
     <header className="flex justify-between items-center p-4 md:p-5 mb-2">
       <div className="flex items-center gap-4">
@@ -31,16 +24,6 @@ const Header: React.FC<HeaderProps> = ({ toggleMobileSidebar }) => {
       </div>
       
       <div className="flex items-center gap-4">
-        <div className="flex items-center">
-          <ProxyStatus className="text-gray-400" />
-          <button 
-            onClick={handleRefreshProxies}
-            className="ml-1 text-gray-400 hover:text-white transition-colors"
-            title="Refresh proxies"
-          >
-            <RefreshCw size={12} />
-          </button>
-        </div>
         <button className="text-gray-400 hover:text-white transition-colors">
           <Bell size={20} />
         </button>

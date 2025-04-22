@@ -8,7 +8,75 @@ from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import os
 import math
+import random
+import requests
 from datetime import datetime
+import urllib.request
+
+# --- Proxy Configuration ---
+# WebShare authenticated proxies
+WEBSHARE_PROXIES = [
+    {'host': '38.153.152.244', 'port': '9594', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'},
+    {'host': '86.38.234.176', 'port': '6630', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'},
+    {'host': '173.211.0.148', 'port': '6641', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'},
+    {'host': '161.123.152.115', 'port': '6360', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'},
+    {'host': '216.10.27.159', 'port': '6837', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'},
+    {'host': '154.36.110.199', 'port': '6853', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'},
+    {'host': '45.151.162.198', 'port': '6600', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'},
+    {'host': '185.199.229.156', 'port': '7492', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'},
+    {'host': '185.199.228.220', 'port': '7300', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'},
+    {'host': '185.199.231.45', 'port': '8382', 'username': 'osafnyak', 'password': 'gzyxyy5u6imp'}
+]
+
+# Track proxy usage and failures
+proxy_stats = {proxy['host']: {'uses': 0, 'failures': 0} for proxy in WEBSHARE_PROXIES}
+current_proxy_index = 0
+
+def get_next_proxy():
+    """Get the next proxy from the rotation, prioritizing ones with fewer failures"""
+    global current_proxy_index
+    
+    # Sort proxies by failure rate (uses / (failures+1))
+    sorted_proxies = sorted(
+        WEBSHARE_PROXIES, 
+        key=lambda p: proxy_stats[p['host']]['failures'] / (proxy_stats[p['host']]['uses'] + 1)
+    )
+    
+    # Get the next proxy
+    proxy = sorted_proxies[current_proxy_index % len(sorted_proxies)]
+    current_proxy_index = (current_proxy_index + 1) % len(sorted_proxies)
+    
+    # Update usage stats
+    proxy_stats[proxy['host']]['uses'] += 1
+    
+    return proxy
+
+def get_proxy_dict():
+    """Get a proxy dictionary for requests library"""
+    proxy = get_next_proxy()
+    proxy_url = f"http://{proxy['username']}:{proxy['password']}@{proxy['host']}:{proxy['port']}"
+    return {
+        "http": proxy_url,
+        "https": proxy_url
+    }
+
+def get_proxy_opener():
+    """Set up a proxy opener for urllib"""
+    proxy = get_next_proxy()
+    proxy_support = urllib.request.ProxyHandler({
+        'http': f"http://{proxy['username']}:{proxy['password']}@{proxy['host']}:{proxy['port']}",
+        'https': f"http://{proxy['username']}:{proxy['password']}@{proxy['host']}:{proxy['port']}"
+    })
+    
+    # Build an opener with authentication
+    password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+    password_mgr.add_password(None, f"{proxy['host']}:{proxy['port']}", proxy['username'], proxy['password'])
+    auth_handler = urllib.request.HTTPBasicAuthHandler(password_mgr)
+    
+    opener = urllib.request.build_opener(proxy_support, auth_handler)
+    
+    logger.info(f"Using proxy: {proxy['host']}:{proxy['port']}")
+    return opener, proxy['host']
 
 # --- Database Setup (SQLAlchemy) ---
 from sqlalchemy import create_engine, Column, String, Float
@@ -195,41 +263,72 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- Helper Functions 
-@lru_cache()
+@lru_cache(maxsize=100)
 def get_stock_info(symbol):
-    stock = yf.Ticker(symbol)
-    info = stock.info
-    hist = stock.history(period="2d")
+    """Get stock information using yfinance with proxy support"""
+    use_proxy = True  # Set to False to disable proxy usage
     
-    if hist.empty:
-        # Try fetching 'info' again if hist fails
-        try:
-             info = stock.info # Re-fetch info as backup
-             if not info or info.get('regularMarketPrice') is None:
-                  raise ValueError("Info lacks price data")
-        except Exception:
-             raise HTTPException(status_code=404, detail=f"Could not retrieve data for symbol: {symbol}")
+    if use_proxy:
+        # Configure yfinance to use our proxy
+        proxy_dict = get_proxy_dict()
+        # Install the proxy opener for urllib (used by yfinance)
+        proxy_opener, proxy_host = get_proxy_opener()
+        urllib.request.install_opener(proxy_opener)
         
-        current_price = info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
-        previous_close = info.get("previousClose") or current_price # Best guess if hist is empty
+        logger.info(f"Fetching data for {symbol} using proxy {proxy_host}")
     else:
-        current_price = hist['Close'].iloc[-1]
-        previous_close = hist['Close'].iloc[0] if len(hist) > 1 else current_price
-
-    change = current_price - previous_close
-    change_percent = (change / previous_close) * 100 if previous_close else 0
+        logger.info(f"Fetching data for {symbol} without proxy")
     
-    asset_type = determine_asset_type(symbol, info)
+    try:
+        # Create the yfinance Ticker object (will use our proxy)
+        stock = yf.Ticker(symbol)
+        
+        # Fetch info and history
+        info = stock.info
+        hist = stock.history(period="2d")
+        
+        # Mark this proxy as successful
+        if use_proxy:
+            logger.info(f"Successfully used proxy {proxy_host} for {symbol}")
+        
+        # Rest of the function continues as before
+        if hist.empty:
+            # Try fetching 'info' again if hist fails
+            try:
+                 info = stock.info # Re-fetch info as backup
+                 if not info or info.get('regularMarketPrice') is None:
+                      raise ValueError("Info lacks price data")
+            except Exception:
+                 raise HTTPException(status_code=404, detail=f"Could not retrieve data for symbol: {symbol}")
+            
+            current_price = info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
+            previous_close = info.get("previousClose") or current_price # Best guess if hist is empty
+        else:
+            current_price = hist['Close'].iloc[-1]
+            previous_close = hist['Close'].iloc[0] if len(hist) > 1 else current_price
 
+        change = current_price - previous_close
+        change_percent = (change / previous_close) * 100 if previous_close else 0
+        
+    except Exception as e:
+        # Mark this proxy as failed
+        if use_proxy:
+            proxy_stats[proxy_host]['failures'] += 1
+            logger.error(f"Proxy {proxy_host} failed for {symbol}: {str(e)}")
+        raise
+    
+    # Rest of the code continues...
+    asset_type = determine_asset_type(symbol, info)
+    
     return {
         "symbol": symbol,
-    "name": info.get("shortName") or info.get("longName") or symbol,
-    "price": current_price,
+        "name": info.get("shortName", info.get("longName", symbol)),
+        "price": current_price,
         "change": change,
         "changePercent": change_percent,
-    "marketCap": info.get("marketCap"),
-    "volume": info.get("regularMarketVolume") or info.get("volume"),
-    "type": asset_type
+        "marketCap": info.get("marketCap"),
+        "volume": info.get("volume", info.get("averageVolume")),
+        "type": asset_type
     }
 
 def determine_asset_type(symbol: str, info: Dict[str, Any]) -> str:
@@ -512,15 +611,33 @@ def get_history(
         # Log request information
         logger.info(f"History request for {symbol} with period={period}, interval={interval}")
         
+        # Configure proxy
+        use_proxy = True  # Set to False to disable proxy usage
+        
+        if use_proxy:
+            # Install the proxy opener for urllib (used by yfinance)
+            proxy_opener, proxy_host = get_proxy_opener()
+            urllib.request.install_opener(proxy_opener)
+            logger.info(f"Fetching history for {symbol} using proxy {proxy_host}")
+        
         # Fetch data from yfinance
         stock = yf.Ticker(symbol)
         hist = stock.history(period=period, interval=interval)
+
+        # Log proxy success if used
+        if use_proxy:
+            logger.info(f"Successfully used proxy {proxy_host} for {symbol} history")
 
         # Log response shape
         logger.info(f"History response for {symbol}: {len(hist)} rows, columns: {list(hist.columns)}")
 
         if hist.empty:
             logger.warning(f"Empty history data for {symbol}")
+            
+            # Mark proxy as failed if used
+            if use_proxy:
+                proxy_stats[proxy_host]['failures'] += 1
+                
             raise HTTPException(status_code=404, detail=f"No historical data found for {symbol}")
             
         # Convert the DataFrame to a list of records - with explicit type checking
@@ -583,6 +700,11 @@ def get_history(
 
         if not history:
             logger.warning(f"No valid history data points for {symbol}")
+            
+            # Mark proxy as failed if used
+            if use_proxy:
+                proxy_stats[proxy_host]['failures'] += 1
+                
             raise HTTPException(status_code=404, detail=f"No valid data points found for {symbol}")
             
         # Log a sample of the formatted data
@@ -600,27 +722,102 @@ def get_history(
         # Re-raise HTTP exceptions
         raise
     except Exception as e:
+        # Mark proxy as failed if used
+        if use_proxy and 'proxy_host' in locals():
+            proxy_stats[proxy_host]['failures'] += 1
+            logger.error(f"Proxy {proxy_host} failed for {symbol} history: {str(e)}")
+            
         logger.exception(f"Error fetching history for {symbol}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch history for {symbol}: {str(e)}")
 
 @app.get("/api/search")
 def search_stocks_endpoint(query: str = Query(..., min_length=1)):
     try:
+        logger.info(f"Search request for query: {query}")
+        
+        # We'll use get_stock_info which already has proxy support
+        # This makes a direct lookup of the symbol
         stock_info = get_stock_info(query.upper()) 
         return [{"symbol": stock_info["symbol"], "name": stock_info["name"]}]
-    except Exception:
-        return []
+    except Exception as e:
+        logger.warning(f"Direct symbol lookup failed for {query}: {str(e)}")
+        
+        # Try a more flexible search approach with proxy support
+        try:
+            # Configure proxy
+            use_proxy = True  # Set to False to disable proxy usage
+            
+            if use_proxy:
+                # Install the proxy opener for urllib (used by yfinance)
+                proxy_opener, proxy_host = get_proxy_opener()
+                urllib.request.install_opener(proxy_opener)
+                logger.info(f"Attempting alternative search for {query} using proxy {proxy_host}")
+            
+            # Try yfinance search function (will attempt to find similar symbols)
+            # This is just a basic implementation - a more robust solution could use a third-party API
+            # that specializes in stock search
+            matching_symbols = []
+            
+            # If the query looks like a symbol (all caps, short), try it directly
+            if query.isupper() and len(query) <= 5:
+                try:
+                    ticker = yf.Ticker(query)
+                    info = ticker.info
+                    if info and 'symbol' in info:
+                        matching_symbols.append({
+                            "symbol": info['symbol'],
+                            "name": info.get('shortName', info.get('longName', 'Unknown'))
+                        })
+                        
+                        # Log proxy success if used
+                        if use_proxy:
+                            logger.info(f"Successfully used proxy {proxy_host} for search: {query}")
+                except Exception:
+                    pass  # Silently fail and continue
+                
+            # Return whatever we found, or empty array
+            return matching_symbols
+            
+        except Exception as search_error:
+            # Mark proxy as failed if used
+            if use_proxy and 'proxy_host' in locals():
+                proxy_stats[proxy_host]['failures'] += 1
+                logger.error(f"Proxy {proxy_host} failed for search {query}: {str(search_error)}")
+                
+            logger.exception(f"All search methods failed for query '{query}': {search_error}")
+            return []  # Return empty result on all failures
 
 @app.get("/api/news/{symbol}", response_model=List[NewsArticle])
 def get_stock_news(symbol: str):
     try:
+        logger.info(f"News request for {symbol}")
+        
+        # Configure proxy
+        use_proxy = True  # Set to False to disable proxy usage
+        
+        if use_proxy:
+            # Install the proxy opener for urllib (used by yfinance)
+            proxy_opener, proxy_host = get_proxy_opener()
+            urllib.request.install_opener(proxy_opener)
+            logger.info(f"Fetching news for {symbol} using proxy {proxy_host}")
+        
         stock = yf.Ticker(symbol)
         
         # Wrap the news access in a try block since it's where the JSONDecodeError happens
         try:
             news = stock.news
+            
+            # Log proxy success if used
+            if use_proxy:
+                logger.info(f"Successfully used proxy {proxy_host} for {symbol} news")
         except Exception as news_error:
             logger.warning(f"Failed to fetch news data for {symbol}: {news_error}")
+            
+            # Mark proxy as failed if used
+            if use_proxy:
+                proxy_stats[proxy_host]['failures'] += 1
+                logger.error(f"Proxy {proxy_host} failed for {symbol} news: {news_error}")
+                
             return []  # Return empty list on error
 
         if not news:
@@ -673,12 +870,45 @@ def get_stock_news(symbol: str):
         
         return articles
     except Exception as e:
+        # Mark proxy as failed if used
+        if use_proxy and 'proxy_host' in locals():
+            proxy_stats[proxy_host]['failures'] += 1
+            logger.error(f"Proxy {proxy_host} failed for {symbol} news: {str(e)}")
+            
         logger.exception(f"Error fetching news for {symbol}: {e}")
         # Return empty list instead of raising an exception
         return []
 
-
-
+@app.get("/api/admin/proxy-status")
+def get_proxy_status():
+    """Admin route to check proxy status and statistics"""
+    # Calculate success rate for each proxy
+    proxy_details = []
+    for proxy in WEBSHARE_PROXIES:
+        host = proxy['host']
+        stats = proxy_stats[host]
+        
+        # Calculate success rate
+        total_uses = stats['uses']
+        failures = stats['failures']
+        success_rate = ((total_uses - failures) / total_uses * 100) if total_uses > 0 else 0
+        
+        proxy_details.append({
+            "host": host,
+            "port": proxy['port'],
+            "uses": total_uses,
+            "failures": failures,
+            "success_rate": round(success_rate, 2)
+        })
+    
+    # Sort by success rate (highest first)
+    proxy_details.sort(key=lambda x: x['success_rate'], reverse=True)
+    
+    return {
+        "total_proxies": len(WEBSHARE_PROXIES),
+        "active_proxies": sum(1 for p in proxy_details if p['success_rate'] >= 50),
+        "proxies": proxy_details
+    }
 
 if __name__ == "__main__":
     import uvicorn
