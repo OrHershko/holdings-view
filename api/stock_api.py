@@ -12,25 +12,41 @@ import os
 from datetime import datetime, timedelta
 
 # --- Database Setup (SQLAlchemy) ---
-from sqlalchemy import create_engine, Column, String, Float, Integer, MetaData, Table # Added DB imports
+from sqlalchemy import create_engine, Column, String, Float, Integer, MetaData, Table
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from sqlalchemy.exc import SQLAlchemyError
-from dotenv import load_dotenv # For local DB URL
+from dotenv import load_dotenv
 
-load_dotenv() # Load .env file for local development
+# Load environment variables from .env and .env.local
+load_dotenv()  # Load .env first
+load_dotenv(".env.local")  # Then load .env.local, which will override .env values
 
-DATABASE_URL = os.getenv("POSTGRES_URL") # Vercel injects this automatically from linked DB
+# Try different environment variable names (Vercel/Neon naming conventions)
+DATABASE_URL = (
+    os.getenv("STORAGE_URL") or  # Vercel integration name
+    os.getenv("POSTGRES_URL") or  # Previous name
+    os.getenv("DATABASE_URL")     # Generic name
+)
+
 if not DATABASE_URL:
-    # Fallback for local dev if needed, or raise error
-    # DATABASE_URL = "postgresql://user:password@host:port/dbname"
-    # raise ValueError("POSTGRES_URL environment variable not set")
-    # Using a placeholder for now to avoid crashing if not set locally
-    # Replace with your actual local DB connection string if testing locally
-    DATABASE_URL = "postgresql://user:password@localhost/portfolio_db"
-    print("WARNING: POSTGRES_URL not set, using placeholder. Database operations might fail.")
+    raise ValueError(
+        "Database URL not found. Ensure either STORAGE_URL, POSTGRES_URL, or DATABASE_URL "
+        "is set in your .env.local file or Vercel environment variables."
+    )
 
+# Configure SQLAlchemy engine with connection pooling
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=5,               # Start with 5 connections
+    max_overflow=10,           # Allow up to 10 additional connections
+    pool_timeout=30,           # Wait up to 30 seconds for a connection
+    pool_recycle=1800,        # Recycle connections every 30 minutes
+    pool_pre_ping=True,       # Enable connection health checks
+    connect_args={
+        "sslmode": "require"  # Required for Neon
+    }
+)
 
-engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -201,12 +217,12 @@ def get_stock_info(symbol):
     
     asset_type = determine_asset_type(symbol, info)
 
-    return {
-        "symbol": symbol,
+        return {
+            "symbol": symbol,
         "name": info.get("shortName") or info.get("longName") or symbol,
         "price": current_price,
-        "change": change,
-        "changePercent": change_percent,
+            "change": change,
+            "changePercent": change_percent,
         "marketCap": info.get("marketCap"),
         "volume": info.get("regularMarketVolume") or info.get("volume"),
         "type": asset_type
@@ -475,7 +491,7 @@ def get_stock_data(symbol: str):
     except Exception as e:
         print(f"Error fetching stock {symbol}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch data for {symbol}")
-
+    
 @app.get("/api/history/{symbol}", response_model=HistoryResponse)
 def get_history(
     symbol: str,
@@ -485,7 +501,7 @@ def get_history(
     try:
         stock = yf.Ticker(symbol)
         hist = stock.history(period=period, interval=interval)
-        
+
         if hist.empty:
             raise HTTPException(status_code=404, detail=f"No historical data found for {symbol}")
             
