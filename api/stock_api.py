@@ -1,98 +1,20 @@
 import logging
 from functools import lru_cache
-import tempfile
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Query, Body, Depends
 from pydantic import BaseModel
-import time
-
-# Import yfinance config first to set up cache
 import yfinance as yf
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import os
-from requests.adapters import HTTPAdapter
-from requests.sessions import Session as RequestsSession
-from urllib3.util.retry import Retry
+import math
+from datetime import datetime
 
 # --- Database Setup (SQLAlchemy) ---
 from sqlalchemy import create_engine, Column, String, Float
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from sqlalchemy.exc import SQLAlchemyError
 from dotenv import load_dotenv
-
-# Set yfinance cache location to a writeable temporary directory
-tmp_dir = tempfile.gettempdir()
-yf.set_tz_cache_location(tmp_dir)
-print(f"Set yfinance cache location to: {tmp_dir}")
-
-# Track last time we used the proxy
-proxy_last_used = time.time()
-
-def get_brightdata_session():
-    global proxy_last_used
-    
-    # Ensure we don't overwhelm the proxy with requests
-    current_time = time.time()
-    time_since_last_use = current_time - proxy_last_used
-    if time_since_last_use < 1:  # 1 second minimum between requests
-        time.sleep(1 - time_since_last_use)
-    
-    # Mark this proxy as used now
-    proxy_last_used = time.time()
-    
-    # Format: {zone}.{token}:{token}@{host}:{port}
-    proxy_url = os.getenv("BRIGHTDATA_PROXY_URL")
-    
-    session = RequestsSession()
-    session.proxies = {
-        "http": proxy_url,
-        "https": proxy_url,
-    }
-
-    # Add timeouts to prevent hanging connections
-    session.timeout = 10  # Flat 10 second timeout
-
-    # Configure retries with backoff
-    retries = Retry(
-        total=3, 
-        backoff_factor=2.0,
-        status_forcelist=[500, 502, 503, 504],
-        respect_retry_after_header=True
-    )
-    adapter = HTTPAdapter(max_retries=retries)
-    session.mount("http://", adapter)
-    session.mount("https://", adapter)
-
-    return session
-
-# Simplified function that just uses Brightdata
-def get_with_proxy(func, *args, **kwargs):
-    max_attempts = 3
-    
-    for attempt in range(max_attempts):
-        try:
-            # Get a fresh session
-            session = get_brightdata_session()
-            # Call the function with the session
-            return func(*args, session=session, **kwargs)
-        except Exception as e:
-            error_str = str(e).lower()
-            # Check if this is a rate limiting error
-            if "429" in error_str or "too many requests" in error_str:
-                logger.warning(f"Rate limited by Brightdata. Waiting before retry.")
-                time.sleep(5 * (attempt + 1))  # Progressive backoff
-            else:
-                logger.warning(f"Proxy error: {str(e)}. Attempt {attempt+1} of {max_attempts}")
-                time.sleep(2)  # Brief pause before retry
-                
-            # If this is our last attempt, raise the exception
-            if attempt == max_attempts - 1:
-                logger.error("All proxy attempts failed")
-                raise HTTPException(status_code=500, detail="Proxy service unavailable")
-    
-# Initialize session
-session = get_brightdata_session()
 
 # Load environment variables from .env and .env.local
 load_dotenv()  # Load .env first
@@ -275,44 +197,40 @@ logger = logging.getLogger(__name__)
 # --- Helper Functions 
 @lru_cache()
 def get_stock_info(symbol):
-    def fetch_with_session(symbol, session):
-        stock = yf.Ticker(symbol, session=session)
-        info = stock.info
-        hist = stock.history(period="2d")
+    stock = yf.Ticker(symbol)
+    info = stock.info
+    hist = stock.history(period="2d")
+    
+    if hist.empty:
+        # Try fetching 'info' again if hist fails
+        try:
+             info = stock.info # Re-fetch info as backup
+             if not info or info.get('regularMarketPrice') is None:
+                  raise ValueError("Info lacks price data")
+        except Exception:
+             raise HTTPException(status_code=404, detail=f"Could not retrieve data for symbol: {symbol}")
         
-        if hist.empty:
-            # Try fetching 'info' again if hist fails
-            try:
-                info = stock.info # Re-fetch info as backup
-                if not info or info.get('regularMarketPrice') is None:
-                    raise ValueError("Info lacks price data")
-            except Exception:
-                raise HTTPException(status_code=404, detail=f"Could not retrieve data for symbol: {symbol}")
-            
-            current_price = info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
-            previous_close = info.get("previousClose") or current_price # Best guess if hist is empty
-        else:
-            current_price = hist['Close'].iloc[-1]
-            previous_close = hist['Close'].iloc[0] if len(hist) > 1 else current_price
+        current_price = info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
+        previous_close = info.get("previousClose") or current_price # Best guess if hist is empty
+    else:
+        current_price = hist['Close'].iloc[-1]
+        previous_close = hist['Close'].iloc[0] if len(hist) > 1 else current_price
 
-        change = current_price - previous_close
-        change_percent = (change / previous_close) * 100 if previous_close else 0
-        
-        asset_type = determine_asset_type(symbol, info)
+    change = current_price - previous_close
+    change_percent = (change / previous_close) * 100 if previous_close else 0
+    
+    asset_type = determine_asset_type(symbol, info)
 
-        return {
-            "symbol": symbol,
-            "name": info.get("shortName") or info.get("longName") or symbol,
-            "price": current_price,
-            "change": change,
-            "changePercent": change_percent,
-            "marketCap": info.get("marketCap"),
-            "volume": info.get("regularMarketVolume") or info.get("volume"),
-            "type": asset_type
-        }
-        
-    # Use proxy rotation to try all proxies
-    return get_with_proxy(fetch_with_session, symbol)
+    return {
+        "symbol": symbol,
+    "name": info.get("shortName") or info.get("longName") or symbol,
+    "price": current_price,
+        "change": change,
+        "changePercent": change_percent,
+    "marketCap": info.get("marketCap"),
+    "volume": info.get("regularMarketVolume") or info.get("volume"),
+    "type": asset_type
+    }
 
 def determine_asset_type(symbol: str, info: Dict[str, Any]) -> str:
     quote_type = info.get("quoteType", "").lower()
@@ -590,69 +508,113 @@ def get_history(
     period: str = Query("1y", description="Duration of historical data"),
     interval: str = Query("1d", description="Data interval")
 ):
-    def fetch_history_with_session(symbol, period, interval, session):
-        stock = yf.Ticker(symbol, session=session)
+    try:
+        # Log request information
+        logger.info(f"History request for {symbol} with period={period}, interval={interval}")
+        
+        # Fetch data from yfinance
+        stock = yf.Ticker(symbol)
         hist = stock.history(period=period, interval=interval)
 
+        # Log response shape
+        logger.info(f"History response for {symbol}: {len(hist)} rows, columns: {list(hist.columns)}")
+
         if hist.empty:
+            logger.warning(f"Empty history data for {symbol}")
             raise HTTPException(status_code=404, detail=f"No historical data found for {symbol}")
             
-        # Convert the DataFrame to a list of records
+        # Convert the DataFrame to a list of records - with explicit type checking
         history = []
         previous_close = None
         
         for idx, row in hist.iterrows():
-            current_close = float(row['Close'])
-            change = current_close - previous_close if previous_close is not None else 0
-            change_percent = (change / previous_close * 100) if previous_close is not None else 0
+            try:
+                # Handle potentially missing or non-numeric data
+                current_close = float(row['Close']) if pd.notna(row['Close']) else None
+                if current_close is None:
+                    logger.warning(f"Missing Close price for {symbol} at {idx}")
+                    continue
+                    
+                # Calculate changes safely
+                if previous_close is not None:
+                    change = current_close - previous_close
+                    change_percent = (change / previous_close * 100) if previous_close != 0 else 0
+                else:
+                    change = 0
+                    change_percent = 0
+                
+                # Format the date consistently for both local and Vercel environments
+                try:
+                    # First try the standard ISO format conversion
+                    date_str = idx.isoformat()
+                    
+                    # Ensure the date string is valid by parsing it back
+                    # This helps catch any serialization issues
+                    datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                except (AttributeError, ValueError, TypeError) as date_error:
+                    # Fallback for any date parsing issues
+                    logger.warning(f"Date formatting error for {symbol}: {date_error}, using string representation")
+                    try:
+                        # Convert to string and then try to parse as datetime
+                        date_str = str(idx)
+                        parsed_date = pd.to_datetime(date_str)
+                        date_str = parsed_date.isoformat()
+                    except Exception:
+                        # Last resort: use the current time
+                        logger.error(f"Could not format date for {symbol}, using current time")
+                        date_str = datetime.now().isoformat()
+                
+                # Convert all values explicitly to ensure proper JSON serialization
+                record = {
+                    'date': date_str,  # Using our robustly formatted date string
+                    'open': float(row['Open']) if pd.notna(row['Open']) else None,
+                    'high': float(row['High']) if pd.notna(row['High']) else None,
+                    'low': float(row['Low']) if pd.notna(row['Low']) else None,
+                    'close': current_close,
+                    'volume': int(row['Volume']) if pd.notna(row['Volume']) else 0,
+                    'change': float(change) if pd.notna(change) else 0,
+                    'changePercent': float(change_percent) if pd.notna(change_percent) else 0
+                }
+                history.append(record)
+                previous_close = current_close
+            except Exception as row_error:
+                logger.error(f"Error processing row for {symbol}: {row_error}, row data: {row}")
+                continue  # Skip problematic rows rather than failing the whole request
+
+        if not history:
+            logger.warning(f"No valid history data points for {symbol}")
+            raise HTTPException(status_code=404, detail=f"No valid data points found for {symbol}")
             
-            record = {
-                'Date': idx.isoformat(),
-                'Open': float(row['Open']),
-                'High': float(row['High']),
-                'Low': float(row['Low']),
-                'Close': current_close,
-                'Volume': int(row['Volume']),
-                'Change': change,
-                'ChangePercent': change_percent
-            }
-            history.append(record)
-            previous_close = current_close
+        # Log a sample of the formatted data
+        if history:
+            logger.info(f"Sample history data point for {symbol}: {history[0]}")
+            
+        # Ensure all numeric values are valid for JSON serialization
+        for item in history:
+            for key, value in item.items():
+                if isinstance(value, (int, float)) and (math.isnan(value) or math.isinf(value)):
+                    item[key] = None
 
         return {"symbol": symbol, "history": history}
-        
-    try:
-        # Use proxy rotation system
-        return get_with_proxy(fetch_history_with_session, symbol, period, interval)
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
-        logger.error(f"Error fetching history for {symbol}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch history for {symbol}")
+        logger.exception(f"Error fetching history for {symbol}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch history for {symbol}: {str(e)}")
 
 @app.get("/api/search")
 def search_stocks_endpoint(query: str = Query(..., min_length=1)):
-    def search_with_session(query, session):
-        ticker = yf.Ticker(query.upper(), session=session)
-        info = ticker.info
-        if info and 'symbol' in info:
-            return [{"symbol": info['symbol'], "name": info.get('shortName') or info.get('longName') or 'Unknown'}]
-        return []
-        
     try:
-        # Try direct lookup using get_stock_info which has proxy rotation built in
         stock_info = get_stock_info(query.upper()) 
         return [{"symbol": stock_info["symbol"], "name": stock_info["name"]}]
     except Exception:
-        try:
-            # If direct lookup fails, try alternate search with proxy rotation
-            return get_with_proxy(search_with_session, query)
-        except Exception:
-            # If all methods fail, return empty list
-            return []
+        return []
 
 @app.get("/api/news/{symbol}", response_model=List[NewsArticle])
 def get_stock_news(symbol: str):
-    def fetch_news_with_session(symbol, session):
-        stock = yf.Ticker(symbol, session=session)
+    try:
+        stock = yf.Ticker(symbol)
         
         # Wrap the news access in a try block since it's where the JSONDecodeError happens
         try:
@@ -693,26 +655,23 @@ def get_stock_news(symbol: str):
                         # Parse the existing date string
                         ts = pd.to_datetime(publish_time_str, errors='coerce')
                         if pd.notna(ts):
-                            published_iso = ts.isoformat()
+                             published_iso = ts.isoformat()
                         else:
-                            logger.warning(f"Could not parse pubDate string '{publish_time_str}' for {symbol} news item.")
+                             logger.warning(f"Could not parse pubDate string '{publish_time_str}' for {symbol} news item.")
                     except Exception as dt_error: # Catch broader errors during parsing
                         logger.warning(f"Error parsing pubDate string '{publish_time_str}' for {symbol}: {dt_error}")
 
-                        articles.append({
-                            "title": title if title else "No title available",
-                            "link": link if link else "#",
-                            "source": source if source else "Unknown source",
-                            "published": published_iso if published_iso else "",
-                        })
+                articles.append({
+                    "title": title if title else "No title available",
+                    "link": link if link else "#",
+                    "source": source if source else "Unknown source",
+                    "published": published_iso if published_iso else "",
+                })
             except Exception as item_error:
                 logger.warning(f"Error processing news item for {symbol}: {item_error}")
+                # Continue processing other items
         
         return articles
-    
-    try:
-        # Use the proxy rotation
-        return get_with_proxy(fetch_news_with_session, symbol)
     except Exception as e:
         logger.exception(f"Error fetching news for {symbol}: {e}")
         # Return empty list instead of raising an exception
