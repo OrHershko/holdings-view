@@ -11,7 +11,7 @@ import math
 from datetime import datetime
 
 # --- Database Setup (SQLAlchemy) ---
-from sqlalchemy import create_engine, Column, String, Float
+from sqlalchemy import create_engine, Column, String, Float, Integer
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from sqlalchemy.exc import SQLAlchemyError
 from dotenv import load_dotenv
@@ -64,6 +64,8 @@ class HoldingDB(Base):
     symbol = Column(String, primary_key=True, index=True)
     shares = Column(Float, nullable=False)
     averageCost = Column(Float, nullable=False)
+    position = Column(Integer, nullable=False, default=0)
+
 
 class WatchlistDB(Base):
     __tablename__ = "watchlist"
@@ -365,33 +367,20 @@ def delete_holding(symbol: str, db: Session = Depends(get_db)):
         db.rollback()
         print(f"Database error deleting holding: {e}")
         raise HTTPException(status_code=500, detail="Database error deleting holding.")
-
+    
 @app.post("/api/portfolio/reorder")
 def reorder_holdings(request: ReorderRequest, db: Session = Depends(get_db)):
     try:
-        # Get all holdings
-        holdings = db.query(HoldingDB).all()
-        holdings_dict = {h.symbol: h for h in holdings}
-        
-        # Verify both holdings exist
-        if request.fromId not in holdings_dict or request.toId not in holdings_dict:
+        # Get both holdings
+        from_holding = db.query(HoldingDB).filter(HoldingDB.symbol == request.fromId).first()
+        to_holding = db.query(HoldingDB).filter(HoldingDB.symbol == request.toId).first()
+
+        if not from_holding or not to_holding:
             raise HTTPException(status_code=404, detail="One or both holdings not found")
-            
-        # Swap the holdings
-        from_holding = holdings_dict[request.fromId]
-        to_holding = holdings_dict[request.toId]
-        
-        # Store temporary values
-        temp_shares = from_holding.shares
-        temp_cost = from_holding.averageCost
-        
-        # Swap values
-        from_holding.shares = to_holding.shares
-        from_holding.averageCost = to_holding.averageCost
-        to_holding.shares = temp_shares
-        to_holding.averageCost = temp_cost
-        
-        # Update the database
+
+        # Swap their position
+        from_holding.position, to_holding.position = to_holding.position, from_holding.position
+
         db.commit()
         return {"message": "Holdings reordered successfully"}
     except SQLAlchemyError as e:
