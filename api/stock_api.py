@@ -246,7 +246,7 @@ def determine_asset_type(symbol: str, info: Dict[str, Any]) -> str:
 @app.get("/api/portfolio")
 def get_portfolio(db: Session = Depends(get_db)):
     try:
-        db_holdings = db.query(HoldingDB).all()
+        db_holdings = db.query(HoldingDB).order_by(HoldingDB.position).all()
     except SQLAlchemyError as e:
          print(f"Database error fetching holdings: {e}")
          raise HTTPException(status_code=500, detail="Database error fetching portfolio.")
@@ -323,8 +323,9 @@ def add_to_portfolio(holding_data: HoldingCreate, db: Session = Depends(get_db))
     if db_holding:
         raise HTTPException(status_code=400, detail="Holding already exists. Use PUT to update.")
     
-    # Create new holding object
-    new_holding = HoldingDB(**holding_data.dict())
+    last_position = db.query(HoldingDB).count()
+
+    new_holding = HoldingDB(**holding_data.model_dump(), position=last_position)
     
     try:
         db.add(new_holding)
@@ -362,11 +363,18 @@ def delete_holding(symbol: str, db: Session = Depends(get_db)):
     try:
         db.delete(db_holding)
         db.commit()
+
+        holdings = db.query(HoldingDB).order_by(HoldingDB.position).all()
+        for i, h in enumerate(holdings):
+            h.position = i
+        db.commit()
+
         return {"message": "Holding deleted successfully"}
     except SQLAlchemyError as e:
         db.rollback()
         print(f"Database error deleting holding: {e}")
         raise HTTPException(status_code=500, detail="Database error deleting holding.")
+
     
 @app.post("/api/portfolio/reorder")
 def reorder_holdings(request: ReorderRequest, db: Session = Depends(get_db)):
@@ -403,7 +411,7 @@ def upload_portfolio(holdings: List[HoldingCreate], db: Session = Depends(get_db
         print(f"Deleted {num_deleted} existing holdings before upload.")
         
         # Add new holdings
-        new_db_holdings = [HoldingDB(**h.dict()) for h in holdings]
+        new_db_holdings = [HoldingDB(**h.dict(), position=i) for i, h in enumerate(holdings)]
         db.add_all(new_db_holdings)
         
         db.commit()

@@ -357,7 +357,8 @@ export const fetchPortfolio = async (): Promise<{
     value: item.value || 0,
     gain: item.gain || 0,
     gainPercent: item.gainPercent || 0,
-    type: item.type || 'stock'
+    type: item.type || 'stock',
+    position: item.position || 0,
   })) || [];
 
   const summary: PortfolioSummary = data.summary || {
