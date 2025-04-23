@@ -70,7 +70,7 @@ const handleDragEnd = async (event: any) => {
   const sortedHoldings = [...portfolioData.holdings].sort((a, b) => a.position - b.position);
   const newOrder = arrayMove(sortedHoldings, oldIndex, newIndex);
 
-  await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/portfolio/reorder`, {
+  await fetch(`${import.meta.env.VITE_API_BASE_URL}/portfolio/reorder`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
