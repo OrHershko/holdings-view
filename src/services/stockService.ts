@@ -92,7 +92,7 @@ export const fetchStockHistory = async (
     console.log(`Fetching history for ${symbol} with period=${fetchPeriod}, interval=${interval} from ${API_BASE_URL}`);
     
     // Use the extended period for fetching data
-    const response = await fetch(`${API_BASE_URL}/history/${symbol}?period=${fetchPeriod}&interval=${interval}`);
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/history/${symbol}?period=${fetchPeriod}&interval=${interval}`);
     
     if (!response.ok) {
       const errorBody = await response.text().catch(() => 'Failed to read error response');
