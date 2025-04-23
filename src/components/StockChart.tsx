@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo, ErrorInfo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useStockHistory } from '@/hooks/useStockData';
 import PeriodSelector from './charts/PeriodSelector';
@@ -68,44 +68,6 @@ const getDefaultInterval = (validIntervals: string[], preferredInterval: string 
   return validIntervals[0] || '1d';
 };
 
-// Add an Error Boundary component
-class ChartErrorBoundary extends React.Component<
-  { children: React.ReactNode, symbol: string, onError: () => void },
-  { hasError: boolean }
-> {
-  constructor(props: { children: React.ReactNode, symbol: string, onError: () => void }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError(_: Error) {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error(`Chart error for ${this.props.symbol}:`, error, errorInfo);
-    this.props.onError();
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="h-[500px] flex items-center justify-center flex-col text-red-500">
-          <p>Chart could not be displayed</p>
-          <button 
-            onClick={() => this.setState({ hasError: false })}
-            className="mt-4 px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600"
-          >
-            Try Again
-          </button>
-        </div>
-      );
-    }
-
-    return this.props.children;
-  }
-}
-
 const StockChart: React.FC<StockChartProps> = ({
   symbol,
   stockName,
@@ -117,7 +79,6 @@ const StockChart: React.FC<StockChartProps> = ({
 }) => {
   const [selectedPeriod, setSelectedPeriod] = useState<string>('1y');
   const [selectedInterval, setSelectedInterval] = useState<string>('1d');
-  const [chartKey, setChartKey] = useState<number>(0); // Add key to force remount
 
   const { toast } = useToast();
   const isPositive = change >= 0;
@@ -151,92 +112,23 @@ const StockChart: React.FC<StockChartProps> = ({
     setSelectedInterval(newInterval);
   }, []);
 
-  const handleChartError = useCallback(() => {
-    toast({
-      title: "Chart Error",
-      description: "There was a problem rendering the stock chart. Please try a different time period.",
-      variant: "destructive",
-    });
-    // Force a remount of the chart component
-    setChartKey(prev => prev + 1);
-  }, [toast]);
-
   const chartData = useMemo(() => {
-    // Validate that data exists and has the required dates array
-    if (!data || !data.dates || !Array.isArray(data.dates) || data.dates.length === 0) {
-      console.warn('Invalid or empty chart data received', data);
-      return [];
-    }
-
-    // Ensure all arrays are actually arrays before mapping
-    const ensureArray = (arr: any): any[] => {
-      if (!arr || !Array.isArray(arr)) {
-        console.warn('Non-array data found in chart data:', arr);
-        return new Array(data.dates.length).fill(null);
-      }
-      return arr;
-    };
-
-    // Create safe arrays with same length as dates
-    const safeVolume = ensureArray(data.volume);
-    const safeSma20 = ensureArray(data.sma20);
-    const safeSma50 = ensureArray(data.sma50);
-    const safeSma100 = ensureArray(data.sma100);
-    const safeSma150 = ensureArray(data.sma150);
-    const safeSma200 = ensureArray(data.sma200);
-    const safeRsi = ensureArray(data.rsi);
-    const safeHigh = ensureArray(data.high);
-    const safeLow = ensureArray(data.low);
-    const safeOpen = ensureArray(data.open);
-    const safeClose = ensureArray(data.close);
-
-    // Create an empty result array
-    const result: any[] = [];
-
-    // Map data safely with index checks - handle array length differences
-    const maxLength = data.dates.length;
-    for (let index = 0; index < maxLength; index++) {
-      try {
-        // Ensure we don't go out of bounds on any array
-        const safeIndex = (arr: any[], idx: number) => {
-          return (arr && Array.isArray(arr) && idx >= 0 && idx < arr.length) ? arr[idx] : null;
-        };
-
-        // Use null for NaN values
-        const sanitizeValue = (value: any): number | null => {
-          if (value === undefined || value === null) return null;
-          const num = typeof value === 'number' ? value : Number(value);
-          return isNaN(num) ? null : num;
-        };
-
-        result.push({
-          date: safeIndex(data.dates, index) || new Date().toISOString(), // Fallback to current date if null
-          volume: sanitizeValue(safeIndex(safeVolume, index)) ?? 0,
-          sma20: sanitizeValue(safeIndex(safeSma20, index)),
-          sma50: sanitizeValue(safeIndex(safeSma50, index)),
-          sma100: sanitizeValue(safeIndex(safeSma100, index)),
-          sma150: sanitizeValue(safeIndex(safeSma150, index)),
-          sma200: sanitizeValue(safeIndex(safeSma200, index)),
-          rsi: sanitizeValue(safeIndex(safeRsi, index)),
-          high: sanitizeValue(safeIndex(safeHigh, index)),
-          low: sanitizeValue(safeIndex(safeLow, index)),
-          open: sanitizeValue(safeIndex(safeOpen, index)),
-          close: sanitizeValue(safeIndex(safeClose, index)),
-        });
-      } catch (err) {
-        console.error("Error creating chart data point at index", index, err);
-      }
-    }
-
-    return result;
+    if (!data?.dates) return [];
+    return data.dates.map((date, index) => ({
+      date,
+      volume: data.volume?.[index] ?? 0,
+      sma20: data.sma20?.[index] ?? null,
+      sma50: data.sma50?.[index] ?? null,
+      sma100: data.sma100?.[index] ?? null,
+      sma150: data.sma150?.[index] ?? null,
+      sma200: data.sma200?.[index] ?? null,
+      rsi: data.rsi?.[index] ?? null,
+      high: data.high?.[index] ?? null,
+      low: data.low?.[index] ?? null,
+      open: data.open?.[index] ?? null,
+      close: data.close?.[index] ?? null,
+    }));
   }, [data]);
-
-  // Debug log outside of JSX
-  useEffect(() => {
-    if (chartData.length > 0) {
-      console.log("StockChart: Prepared chartData:", chartData);
-    }
-  }, [chartData]);
 
   if (isLoading) {
     return (
@@ -337,12 +229,9 @@ const StockChart: React.FC<StockChartProps> = ({
           </div>
         </div>
         <div className="mb-4">
-          <ChartErrorBoundary symbol={symbol} onError={handleChartError}>
-            <LightweightStockChart
-              key={chartKey}
-              data={chartData}
-            />
-          </ChartErrorBoundary>
+          <LightweightStockChart
+            data={chartData}
+          />
         </div>
         <div className="flex flex-col sm:flex-row justify-between mt-4 gap-4">
           <PeriodSelector
