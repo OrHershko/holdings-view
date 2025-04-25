@@ -50,7 +50,7 @@ try:
     # Configure SQLAlchemy engine with explicit dialect
     engine = create_engine(
         DATABASE_URL,
-        #connect_args={"sslmode": "require"},  # Required for Neon/Vercel Postgres
+        connect_args={"sslmode": "require"},  # Required for Neon/Vercel Postgres
         pool_pre_ping=True  # Add connection health check
     )
     
