@@ -1,17 +1,12 @@
 import logging
-import re
 from functools import lru_cache
 from typing import Dict, List, Optional, Union, Any
 from pydantic import BaseModel
-import re
-import numpy as np
-from fastapi import FastAPI, Query, HTTPException, Depends, BackgroundTasks, status, Body, Request
+from fastapi import FastAPI, Query, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import yfinance as yf
-from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
-import os
 from datetime import datetime
 import firebase_admin
 from firebase_admin import auth as firebase_auth, credentials
