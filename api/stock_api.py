@@ -1,8 +1,13 @@
 import logging
+import re
 from functools import lru_cache
-from typing import List, Optional, Dict, Any
-from fastapi import FastAPI, HTTPException, Query, Body, Depends
+from typing import Dict, List, Optional, Union, Any
 from pydantic import BaseModel
+import re
+import numpy as np
+from fastapi import FastAPI, Query, HTTPException, Depends, BackgroundTasks, status, Body, Request
+from fastapi.middleware.cors import CORSMiddleware
+import os
 import yfinance as yf
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
@@ -14,6 +19,7 @@ from datetime import datetime
 from sqlalchemy import create_engine, Column, String, Float, Integer
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import text
 from dotenv import load_dotenv
 
 # Load environment variables from .env and .env.local
@@ -43,13 +49,13 @@ try:
     # Configure SQLAlchemy engine with explicit dialect
     engine = create_engine(
         DATABASE_URL,
-        connect_args={"sslmode": "require"},  # Required for Neon/Vercel Postgres
+        #connect_args={"sslmode": "require"},  # Required for Neon/Vercel Postgres
         pool_pre_ping=True  # Add connection health check
     )
     
     # Test the connection
     with engine.connect() as conn:
-        conn.execute("SELECT 1")
+        conn.execute(text("SELECT 1"))
         print("Database connection successful!")
 except Exception as e:
     print(f"Error connecting to database: {str(e)}")
@@ -87,13 +93,106 @@ def get_db():
     finally:
         db.close()
 
-# --- Original JSON File Handling (Commented Out/To Be Removed) ---
-# PORTFOLIO_FILE = "portfolio.json"
-# WATCHLIST_FILE = "watchlist.json"
-# def load_portfolio_json(): ...
-# def save_portfolio_json(portfolio): ...
-# def load_watchlist_json(): ...
-# def save_watchlist_json(watchlist): ...
+# --- Helper Functions 
+@lru_cache()
+def get_stock_info(symbol):
+    stock = yf.Ticker(symbol)
+    info = stock.info
+    hist = stock.history(period="2d")
+
+    current_price = None
+    previous_close = None
+    pre_market_price = None
+    post_market_price = None
+    
+    if hist.empty:
+        try:
+             info = stock.info # Re-fetch info as backup
+             if not info or info.get('regularMarketPrice') is None:
+                  raise ValueError("Info lacks price data")
+        except Exception:
+             raise HTTPException(status_code=404, detail=f"Could not retrieve data for symbol: {symbol}")
+        
+        current_price = info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
+        previous_close = info.get("previousClose") or current_price # Best guess if hist is empty
+    else:
+        current_price = hist['Close'].iloc[-1]
+        previous_close = hist['Close'].iloc[0] if len(hist) > 1 else current_price
+
+    if current_price is None:
+        if info:
+            current_price = info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
+            if current_price is None:
+                 raise HTTPException(status_code=404, detail=f"Could not determine current price for symbol: {symbol}")
+            previous_close = info.get("previousClose") or current_price
+        else:
+            raise HTTPException(status_code=404, detail=f"Could not retrieve data for symbol: {symbol}")
+    
+    if previous_close is None:
+        previous_close = current_price
+
+    change = current_price - previous_close
+    change_percent = (change / previous_close) * 100 if previous_close else 0
+    
+    asset_type = determine_asset_type(symbol, info)
+    market_state = info.get("marketState")
+
+    if market_state == "PRE":
+        pre_market_price = info.get("preMarketPrice")
+    elif market_state == "POST":
+        data = stock.history(period="1d", interval="1m", prepost=True, auto_adjust=False)
+        post_market_price = data.tail(1)["Close"].iloc[0]
+    else:
+        pre_market_price = 0
+        post_market_price = 0
+
+    return {
+        "symbol": symbol,
+        "name": info.get("shortName") or info.get("longName") or symbol,
+        "price": current_price,
+        "change": change,
+        "changePercent": change_percent,
+        "marketCap": info.get("marketCap"),
+        "volume": info.get("regularMarketVolume") or info.get("volume"),
+        "type": asset_type,
+        "preMarketPrice": pre_market_price, 
+        "postMarketPrice": post_market_price, 
+        "marketState": market_state
+    }
+
+def determine_asset_type(symbol: str, info: Dict[str, Any]) -> str:
+    quote_type = info.get("quoteType", "").lower()
+    if quote_type == "etf": return "etf"
+    if quote_type == "cryptocurrency": return "crypto"
+    # Add checks for other types if needed
+    return "stock"
+
+# Helper function to calculate SMA values
+def calculate_sma_values(close_values):
+    """
+    Calculate SMA values for different periods
+    """
+    sma_periods = [20, 50, 100, 150, 200]
+    sma_data = {}
+    
+    for period in sma_periods:
+        key = f"sma{period}"
+        sma_data[key] = []
+        
+        # Need enough data points for the SMA period
+        if len(close_values) >= period:
+            # Use numpy's convolve for efficient moving average calculation
+            weights = np.ones(period) / period
+            sma_values = np.convolve(close_values, weights, mode='valid')
+            
+            # Pad with None values at the beginning to match original array length
+            padding = [None] * (period - 1)
+            sma_data[key] = padding + sma_values.tolist()
+        else:
+            # Not enough data for this period, fill with None
+            sma_data[key] = [None] * len(close_values)
+    
+    return sma_data
 
 # --- Pydantic Models (Existing - Keep as is) ---
 class HoldingCreate(BaseModel):
@@ -110,6 +209,9 @@ class HoldingResponse(HoldingCreate):
     gain: Optional[float] = None
     gainPercent: Optional[float] = None
     type: Optional[str] = None
+    preMarketPrice: Optional[float] = None
+    postMarketPrice: Optional[float] = None
+    marketState: Optional[str] = None
 
 class PortfolioSummary(BaseModel):
     totalValue: float
@@ -125,8 +227,11 @@ class StockData(BaseModel):
     change: float
     changePercent: float
     marketCap: Optional[float] = None
-    volume: Optional[float] = None # Should likely be int
+    volume: Optional[float] = None
     type: Optional[str] = None
+    preMarketPrice: Optional[float] = None
+    postMarketPrice: Optional[float] = None
+    marketState: Optional[str] = None
 
 class StockHistoryData(BaseModel):
     dates: List[str]
@@ -136,7 +241,8 @@ class StockHistoryData(BaseModel):
     low: List[float]
     open: List[float]
     close: List[float]
-    # ... other indicators ...
+    preMarketPrice: Optional[float] = None
+    postMarketPrice: Optional[float] = None
 
 class NewsArticle(BaseModel):
     title: str
@@ -147,13 +253,14 @@ class NewsArticle(BaseModel):
 class ReorderRequest(BaseModel):
     orderedSymbols: List[str]
 
-
 class WatchlistItemResponse(BaseModel):
     symbol: str
     name: Optional[str] = None
     price: Optional[float] = None
     change: Optional[float] = None
     changePercent: Optional[float] = None
+    preMarketPrice: Optional[float] = None
+    marketState: Optional[str] = None
 
 class StockResponse(BaseModel):
     symbol: str
@@ -164,10 +271,20 @@ class StockResponse(BaseModel):
     marketCap: Optional[float] = None
     volume: Optional[int] = None
     type: Optional[str] = None
+    marketState: Optional[str] = None
 
 class HistoryResponse(BaseModel):
     symbol: str
-    history: List[Dict[str, Any]]
+    history: List[Dict]
+    period: str
+    interval: str
+    adjusted: Optional[bool] = None
+    requestedPeriod: Optional[str] = None
+    actualPeriod: Optional[str] = None
+    message: Optional[str] = None
+    sma: Optional[Dict[str, List[Union[float, None]]]] = None
+    type: Optional[str] = None
+    marketState: Optional[str] = None
 
 class SearchResponse(BaseModel):
     results: List[dict]
@@ -181,12 +298,12 @@ app = FastAPI()
 allowed_origins = [
     "https://holdings-view.vercel.app",  # Production URL
     "http://localhost:8080",             # Local development
-    FRONTEND_URL                         # From environment variable
+    FRONTEND_URL,                        # From environment variable
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -195,51 +312,6 @@ app.add_middleware(
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# --- Helper Functions 
-@lru_cache()
-def get_stock_info(symbol):
-    stock = yf.Ticker(symbol)
-    info = stock.info
-    hist = stock.history(period="2d")
-    
-    if hist.empty:
-        # Try fetching 'info' again if hist fails
-        try:
-             info = stock.info # Re-fetch info as backup
-             if not info or info.get('regularMarketPrice') is None:
-                  raise ValueError("Info lacks price data")
-        except Exception:
-             raise HTTPException(status_code=404, detail=f"Could not retrieve data for symbol: {symbol}")
-        
-        current_price = info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
-        previous_close = info.get("previousClose") or current_price # Best guess if hist is empty
-    else:
-        current_price = hist['Close'].iloc[-1]
-        previous_close = hist['Close'].iloc[0] if len(hist) > 1 else current_price
-
-    change = current_price - previous_close
-    change_percent = (change / previous_close) * 100 if previous_close else 0
-    
-    asset_type = determine_asset_type(symbol, info)
-
-    return {
-        "symbol": symbol,
-    "name": info.get("shortName") or info.get("longName") or symbol,
-    "price": current_price,
-        "change": change,
-        "changePercent": change_percent,
-    "marketCap": info.get("marketCap"),
-    "volume": info.get("regularMarketVolume") or info.get("volume"),
-    "type": asset_type
-    }
-
-def determine_asset_type(symbol: str, info: Dict[str, Any]) -> str:
-    quote_type = info.get("quoteType", "").lower()
-    if quote_type == "etf": return "etf"
-    if quote_type == "cryptocurrency": return "crypto"
-    # Add checks for other types if needed
-    return "stock"
 
 # --- Refactored API Routes --- 
 
@@ -269,6 +341,12 @@ def get_portfolio(db: Session = Depends(get_db)):
             day_change_value = change * shares
             start_value = value - day_change_value
 
+            # Log the raw stock data for debugging
+            print(f"Raw stock data for {holding.symbol}:")
+            print(f"  pre_market_price = {stock_data.get('preMarketPrice')}")
+            print(f"  post_market_price = {stock_data.get('postMarketPrice')}")
+            print(f"  market_state = {stock_data.get('marketState')}")
+
             updated_holding = {
                 "symbol": holding.symbol, # From DB
                 "shares": shares,         # From DB
@@ -280,8 +358,17 @@ def get_portfolio(db: Session = Depends(get_db)):
                 "value": value,
                 "gain": gain,
                 "gainPercent": gain_percent,
-                "type": stock_data["type"]
+                "type": stock_data["type"],
+                "preMarketPrice": stock_data["preMarketPrice"],
+                "postMarketPrice": stock_data["postMarketPrice"],
+                "marketState": stock_data["marketState"]
             }
+            
+            # Log the holding we're adding to the portfolio
+            print(f"Updated holding for {holding.symbol}:")
+            print(f"  preMarketPrice = {updated_holding['preMarketPrice']}")
+            print(f"  postMarketPrice = {updated_holding['postMarketPrice']}")
+            print(f"  marketState = {updated_holding['marketState']}")
             updated_portfolio.append(updated_holding)
             total_day_change_value += day_change_value
             total_start_value += start_value
@@ -294,7 +381,10 @@ def get_portfolio(db: Session = Depends(get_db)):
                 "averageCost": holding.averageCost,
                 "name": f"{holding.symbol} (Data Error)",
                 "currentPrice": None, "change": None, "changePercent": None,
-                "value": None, "gain": None, "gainPercent": None, "type": None
+                "value": None, "gain": None, "gainPercent": None, "type": None,
+                "preMarketPrice": None,
+                "postMarketPrice": None,
+                "marketState": None
             })
 
     # Calculate portfolio summary
@@ -304,7 +394,15 @@ def get_portfolio(db: Session = Depends(get_db)):
     total_gain_percent = (total_gain / total_cost_basis) * 100 if total_cost_basis > 0 else 0
     day_change_percent = (total_day_change_value / total_start_value) * 100 if total_start_value > 0 else 0
 
-    return {
+    # Log the final response for debugging
+    if updated_portfolio:
+        print(f"First holding in final response:")
+        print(f"  Symbol: {updated_portfolio[0]['symbol']}")
+        print(f"  preMarketPrice: {updated_portfolio[0]['preMarketPrice']}")
+        print(f"  postMarketPrice: {updated_portfolio[0]['postMarketPrice']}")
+        print(f"  marketState: {updated_portfolio[0]['marketState']}")
+    
+    response_data = {
         "holdings": updated_portfolio,
         "summary": {
             "totalValue": total_value,
@@ -314,6 +412,8 @@ def get_portfolio(db: Session = Depends(get_db)):
             "dayChangePercent": day_change_percent,
         }
     }
+    
+    return response_data
 
 
 @app.post("/api/portfolio/add")
@@ -436,7 +536,9 @@ def get_watchlist_details(db: Session = Depends(get_db)):
                     name=stock_data["name"],
                     price=stock_data["price"],
                     change=stock_data["change"],
-                    changePercent=stock_data["changePercent"]
+                    changePercent=stock_data["changePercent"],
+                    preMarketPrice=stock_data.get("preMarketPrice"),
+                    marketState=stock_data.get("marketState")
                 )
             )
         except Exception as e:
@@ -460,7 +562,7 @@ def add_to_watchlist(symbol: str, db: Session = Depends(get_db)):
     try:
         db.add(new_watchlist_item)
         db.commit()
-        return {"message": f"{symbol_upper} added to watchlist"}
+        return {"message": "Symbol added to watchlist"}
     except SQLAlchemyError as e:
         db.rollback()
         print(f"Database error adding to watchlist: {e}")
@@ -493,6 +595,7 @@ def get_stock_data(symbol: str):
     
 @app.get("/api/history/{symbol}", response_model=HistoryResponse)
 def get_history(
+    request: Request,
     symbol: str,
     period: str = Query("1y", description="Duration of historical data"),
     interval: str = Query("1d", description="Data interval")
@@ -501,7 +604,69 @@ def get_history(
         # Log request information
         logger.info(f"History request for {symbol} with period={period}, interval={interval}")
         
-        # Fetch data from yfinance
+        # Map intervals to their maximum allowed periods
+        max_periods = {
+            "1m": "7d",   # 1-minute data: max 7 days
+            "2m": "60d",  # 2-minute data: max 60 days
+            "5m": "60d",  # 5-minute data: max 60 days
+            "15m": "60d", # 15-minute data: max 60 days
+            "30m": "60d", # 30-minute data: max 60 days
+            "60m": "730d", # 60-minute data: max 730 days (2 years)
+            "90m": "60d",  # 90-minute data: max 60 days
+            "1h": "730d",  # 1-hour data: max 730 days (2 years)
+            "1d": "max",   # daily data: max available
+            "5d": "max",   # 5-day data: max available
+            "1wk": "max",  # weekly data: max available
+            "1mo": "max",  # monthly data: max available
+            "3mo": "max"   # quarterly data: max available
+        }
+        
+        # Check if period adjustment is needed
+        original_period = period
+        period_adjusted = False
+        
+        # Get the max allowed period for this interval
+        if interval in max_periods and max_periods[interval] != "max":
+            # These period strings from Yahoo Finance
+            period_values = {
+                "1d": 1, "5d": 5, "7d": 7, "60d": 60, "90d": 90,
+                "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, 
+                "5y": 1825, "10y": 3650, "ytd": None, "max": None
+            }
+            
+            # Try to get numeric values for comparison
+            requested_days = None
+            if period in period_values:
+                requested_days = period_values[period]
+            elif period.endswith('d'):
+                try:
+                    requested_days = int(period[:-1])
+                except ValueError:
+                    pass
+            
+            max_allowed_days = None
+            max_period = max_periods[interval]
+            if max_period in period_values:
+                max_allowed_days = period_values[max_period]
+            elif max_period.endswith('d'):
+                try:
+                    max_allowed_days = int(max_period[:-1])
+                except ValueError:
+                    pass
+            
+            # If we can compare numerically, adjust if needed
+            if requested_days is not None and max_allowed_days is not None:
+                if requested_days > max_allowed_days:
+                    period = max_period
+                    period_adjusted = True
+                    logger.info(f"Adjusted period from {original_period} to {period} for {interval} interval")
+            # Otherwise use string matching for safety
+            elif period not in ["1d", "5d", "7d", "60d"] and interval in ["1m", "2m", "5m", "15m", "30m", "90m"]:
+                period = max_period
+                period_adjusted = True
+                logger.info(f"Adjusted period from {original_period} to {period} for {interval} interval")
+            
+        # Fetch data from yfinance with potentially adjusted period
         stock = yf.Ticker(symbol)
         hist = stock.history(period=period, interval=interval)
 
@@ -513,84 +678,62 @@ def get_history(
             raise HTTPException(status_code=404, detail=f"No historical data found for {symbol}")
             
         # Convert the DataFrame to a list of records - with explicit type checking
-        history = []
-        previous_close = None
+        hist_dict = hist.reset_index().to_dict('records')
         
-        for idx, row in hist.iterrows():
-            try:
-                # Handle potentially missing or non-numeric data
-                current_close = float(row['Close']) if pd.notna(row['Close']) else None
-                if current_close is None:
-                    logger.warning(f"Missing Close price for {symbol} at {idx}")
-                    continue
-                    
-                # Calculate changes safely
-                if previous_close is not None:
-                    change = current_close - previous_close
-                    change_percent = (change / previous_close * 100) if previous_close != 0 else 0
-                else:
-                    change = 0
-                    change_percent = 0
+        # Convert all dates to string format for JSON serialization
+        for item in hist_dict:
+            if 'Date' in item and pd.notnull(item['Date']):
+                item['date'] = item['Date'].strftime('%Y-%m-%d')
                 
-                # Format the date consistently for both local and Vercel environments
-                try:
-                    # First try the standard ISO format conversion
-                    date_str = idx.isoformat()
-                    
-                    # Ensure the date string is valid by parsing it back
-                    # This helps catch any serialization issues
-                    datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                except (AttributeError, ValueError, TypeError) as date_error:
-                    # Fallback for any date parsing issues
-                    logger.warning(f"Date formatting error for {symbol}: {date_error}, using string representation")
-                    try:
-                        # Convert to string and then try to parse as datetime
-                        date_str = str(idx)
-                        parsed_date = pd.to_datetime(date_str)
-                        date_str = parsed_date.isoformat()
-                    except Exception:
-                        # Last resort: use the current time
-                        logger.error(f"Could not format date for {symbol}, using current time")
-                        date_str = datetime.now().isoformat()
-                
-                # Convert all values explicitly to ensure proper JSON serialization
-                record = {
-                    'date': date_str,  # Using our robustly formatted date string
-                    'open': float(row['Open']) if pd.notna(row['Open']) else None,
-                    'high': float(row['High']) if pd.notna(row['High']) else None,
-                    'low': float(row['Low']) if pd.notna(row['Low']) else None,
-                    'close': current_close,
-                    'volume': int(row['Volume']) if pd.notna(row['Volume']) else 0,
-                    'change': float(change) if pd.notna(change) else 0,
-                    'changePercent': float(change_percent) if pd.notna(change_percent) else 0
-                }
-                history.append(record)
-                previous_close = current_close
-            except Exception as row_error:
-                logger.error(f"Error processing row for {symbol}: {row_error}, row data: {row}")
-                continue  # Skip problematic rows rather than failing the whole request
-
-        if not history:
-            logger.warning(f"No valid history data points for {symbol}")
-            raise HTTPException(status_code=404, detail=f"No valid data points found for {symbol}")
+            # If there's a datetime index with time, format it with time
+            if 'Datetime' in item and pd.notnull(item['Datetime']):
+                item['date'] = item['Datetime'].strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Calculate SMAs if requested
+        sma_data = None
+        calculate_sma = request.query_params.get('calculate_sma')
+        if calculate_sma and calculate_sma.lower() == 'true':
+            close_values = hist['Close'].values
+            if len(close_values) > 0:
+                sma_data = calculate_sma_values(close_values)
+        
+        response_data = {
+            "history": hist_dict,
+            "symbol": symbol,
+            "period": period,
+            "interval": interval
+        }
+        
+        # Add period adjustment info to response if applicable
+        if period_adjusted:
+            response_data["adjusted"] = True
+            response_data["requestedPeriod"] = original_period
+            response_data["actualPeriod"] = period
+            response_data["message"] = f"Adjusted period from {original_period} to {period} due to {interval} interval limitations"
             
-        # Log a sample of the formatted data
-        if history:
-            logger.info(f"Sample history data point for {symbol}: {history[0]}")
-            
-        # Ensure all numeric values are valid for JSON serialization
-        for item in history:
-            for key, value in item.items():
-                if isinstance(value, (int, float)) and (math.isnan(value) or math.isinf(value)):
-                    item[key] = None
-
-        return {"symbol": symbol, "history": history}
+        # Add SMA data if calculated
+        if sma_data:
+            response_data["sma"] = sma_data
+        
+        return response_data
     except HTTPException:
         # Re-raise HTTP exceptions
         raise
     except Exception as e:
-        logger.exception(f"Error fetching history for {symbol}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch history for {symbol}: {str(e)}")
+        error_msg = str(e)
+        logger.exception(f"Error fetching history for {symbol}: {error_msg}")
+        
+        # Detect specific Yahoo Finance error about data unavailability
+        if "data not available for startTime" in error_msg and "The requested range must be within" in error_msg:
+            timeframe_match = re.search(r"must be within the last (\d+) days", error_msg)
+            if timeframe_match:
+                max_days = timeframe_match.group(1)
+                detail = f"The requested {interval} interval data is only available for the last {max_days} days. Try a larger interval (like '1d') for longer periods."
+            else:
+                detail = f"The requested data is not available for the specified period and interval. Try a larger interval (like '1d') for longer periods."
+            raise HTTPException(status_code=400, detail=detail)
+            
+        raise HTTPException(status_code=500, detail=f"Failed to fetch historical data for {symbol}: {error_msg}")
 
 @app.get("/api/search")
 def search_stocks_endpoint(query: str = Query(..., min_length=1)):

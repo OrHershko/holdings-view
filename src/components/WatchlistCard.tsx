@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Plus, Trash2, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
 import { useWatchlist, useAddToWatchlist, useRemoveFromWatchlist } from '@/hooks/useStockData';
 import { useToast } from './ui/use-toast';
+import { WatchlistItem } from '@/services/stockService';
 
 interface WatchlistCardProps {
   onSelectStock: (symbol: string) => void;
@@ -77,7 +78,7 @@ const WatchlistCard: React.FC<WatchlistCardProps> = ({ onSelectStock }) => {
         )}
         {!isLoading && !error && watchlist && watchlist.length > 0 && (
           <div className="space-y-2">
-            {watchlist.map((stock) => {
+            {watchlist.map((stock: WatchlistItem) => {
               const isPositiveChange = stock.change ? stock.change >= 0 : true;
               return (
             <div 
@@ -92,6 +93,12 @@ const WatchlistCard: React.FC<WatchlistCardProps> = ({ onSelectStock }) => {
                     {stock.price !== undefined && stock.price !== null ? (
                         <>
                 <p className="font-medium">${stock.price.toFixed(2)}</p>
+                          {stock.marketState === 'PRE' && stock.preMarketPrice != null && (
+                              <p className="text-xs text-ios-gray">Pre: ${stock.preMarketPrice.toFixed(2)}</p>
+                          )}
+                          {stock.marketState === 'POST' && stock.afterHoursPrice != null && (
+                              <p className="text-xs text-ios-gray">AH: ${stock.afterHoursPrice.toFixed(2)}</p>
+                          )}
                           {stock.changePercent !== undefined && stock.changePercent !== null ? (
                               <div className={`flex items-center justify-end text-xs ${isPositiveChange ? 'text-ios-green' : 'text-ios-red'}`}>
                                 {isPositiveChange ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}

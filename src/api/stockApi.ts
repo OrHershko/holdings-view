@@ -7,6 +7,9 @@ export interface StockData {
   marketCap: number;
   volume: number;
   type?: string;
+  preMarketPrice: number;
+  postMarketPrice: number;
+  marketState?: string;
 }
 
 export interface PortfolioHolding {
@@ -22,6 +25,9 @@ export interface PortfolioHolding {
   gain: number;
   gainPercent: number;
   type: 'stock' | 'etf' | 'crypto' | 'cash';
+  preMarketPrice: number;
+  postMarketPrice: number;
+  marketState?: string;
 }
 
 export interface PortfolioSummary {

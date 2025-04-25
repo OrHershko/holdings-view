@@ -27,8 +27,8 @@ console.log(`Using API Base URL: ${API_BASE_URL}`); // Log for debugging
 
 // Helper function to handle API errors consistently
 const handleApiError = (error: any, context: string): never => {
-  // Try to extract error details if available
-  let errorMessage = 'API request failed';
+  // Error message will be constructed based on error details
+  let errorMessage;
   
   try {
     if (error.response) {
@@ -73,7 +73,10 @@ export const fetchStock = async (symbol: string): Promise<StockData> => {
       changePercent: data.changePercent || 0,
       marketCap: data.marketCap || 0,
       volume: data.volume || 0,
-      type: data.type || 'stock'
+      type: data.type || 'stock',
+      preMarketPrice: data.preMarketPrice || 0,
+      postMarketPrice: data.postMarketPrice || 0,
+      marketState: data.marketState
     };
   } catch (error) {
     return handleApiError(error, `fetchStock(${symbol})`);
@@ -87,12 +90,12 @@ export const fetchStockHistory = async (
 ): Promise<StockHistoryData> => {
   // Calculate a longer period for data fetching to accommodate indicators
   const fetchPeriod = getExtendedPeriod(period, 200); // Add enough for SMA 200
-
+  
   try {
     console.log(`Fetching history for ${symbol} with period=${fetchPeriod}, interval=${interval} from ${API_BASE_URL}`);
     
-    // Use the extended period for fetching data
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/history/${symbol}?period=${fetchPeriod}&interval=${interval}`);
+    // Use the extended period for fetching data and tell the backend to calculate SMAs
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/history/${symbol}?period=${fetchPeriod}&interval=${interval}&calculate_sma=true`);
     
     if (!response.ok) {
       const errorBody = await response.text().catch(() => 'Failed to read error response');
@@ -104,8 +107,13 @@ export const fetchStockHistory = async (
     try {
       rawData = await response.json();
       console.log(`Received history response for ${symbol}:`, 
-                  Object.keys(rawData || {}), 
-                  `History items: ${rawData?.history?.length || 0}`);
+                  Object.keys(rawData ?? {}), 
+                  `History items: ${rawData?.history?.length ?? 0}`);
+      
+      // Check if SMA data was included in the response
+      if (rawData?.sma) {
+        console.log(`Received SMA data from server: ${Object.keys(rawData.sma).join(', ')}`);
+      }
                   
       // Debug first history item to see actual structure               
       if (rawData?.history?.[0]) {
@@ -117,51 +125,41 @@ export const fetchStockHistory = async (
     }
     
     // Validate the response data
-    if (!rawData || !rawData.history || !Array.isArray(rawData.history) || rawData.history.length === 0) {
-      console.warn(`Empty or invalid history data received for ${symbol}`);
-      // Return empty arrays for all fields
+    if (!rawData || !Array.isArray(rawData.history) || rawData.history.length === 0) {
+      console.warn(`No valid history data received for ${symbol}`);
       return { 
         dates: [], prices: [], volume: [], open: [], close: [], high: [], low: [],
         sma20: [], sma50: [], sma100: [], sma150: [], sma200: [], rsi: []
       };
     }
 
-    // --- Calculate indicators using the FULL fetched data ---
+    // --- Process the fetched data ---
     // Extract close values, handling different case formats that might come from the backend
     const allCloseValues = rawData.history.map((h: any) => {
       // Ensure each value is a valid number and handle both lowercase and uppercase field names
       if (!h || typeof h !== 'object') return null;
       
       // Try both lowercase (preferred) and uppercase (fallback) field names
-      const closeValue = h.close !== undefined ? h.close : 
-                         h.Close !== undefined ? h.Close : null;
-                         
-      const close = typeof closeValue === 'number' ? closeValue : 
-                    (closeValue !== null ? parseFloat(String(closeValue)) : null);
-                    
+      let close = null;
+      if (typeof h.close === 'number') {
+        close = h.close;
+      } else if (h.close !== null && h.close !== undefined) {
+        close = parseFloat(String(h.close));
+      } else if (typeof h.Close === 'number') {
+        close = h.Close;
+      } else if (h.Close !== null && h.Close !== undefined) {
+        close = parseFloat(String(h.Close));
+      }
+                   
       return isNaN(close) ? null : close;
     }).filter((v: any) => v !== null); // Remove null values
-
-    // Get dates with field name fallbacks
-    const allDates = rawData.history.map((h: any) => 
-      h.date || h.Date || null
-    ).filter(Boolean); // Keep all dates for reference if needed
     
     const totalFetchedPoints = rawData.history.length;
     
     console.log(`Processed ${totalFetchedPoints} history points for ${symbol}, valid close values: ${allCloseValues.length}`);
 
-    // Safety check - if we don't have valid close values, return empty data
-    if (allCloseValues.length === 0) {
-      console.warn(`No valid close values found for ${symbol}`);
-      return { 
-        dates: [], prices: [], volume: [], open: [], close: [], high: [], low: [],
-        sma20: [], sma50: [], sma100: [], sma150: [], sma200: [], rsi: []
-      };
-    }
-
     // Safely calculate SMA with error handling
-    const calculateSMA = (period: number, values: number[]) => {
+    const calculateSMA = (period: number, values: number[]): (number | null)[] => {
       try {
         const sma = SMA.calculate({ period, values });
         // Pad with nulls at the beginning to match the length of the input array
@@ -171,28 +169,61 @@ export const fetchStockHistory = async (
         return Array(values.length).fill(null);
       }
     };
-
-    // Calculate SMAs safely
-    const smaPeriods = [20, 50, 100, 150, 200];
+    
+    // Will store SMA results for all periods
     const smaResultsFull: Record<string, (number | null)[]> = {};
     
-    smaPeriods.forEach(p => {
-      if (allCloseValues.length >= p) {
-        smaResultsFull[`sma${p}`] = calculateSMA(p, allCloseValues);
-      } else {
-        // Not enough data for this SMA period
-        smaResultsFull[`sma${p}`] = Array(totalFetchedPoints).fill(null);
-      }
+    // If server returned SMA data, use it directly
+    if (rawData?.sma) {
+      // SMA data is already calculated on the server side
+      const serverSMAData = rawData.sma;
       
-      // Ensure array length matches total points
-      while (smaResultsFull[`sma${p}`].length < totalFetchedPoints) {
-        smaResultsFull[`sma${p}`].push(null);
-      }
-      if (smaResultsFull[`sma${p}`].length > totalFetchedPoints) {
-        smaResultsFull[`sma${p}`] = smaResultsFull[`sma${p}`].slice(0, totalFetchedPoints);
-      }
-    });
-
+      // For each SMA period, map the server-provided values to our chart points
+      const smaPeriods = [20, 50, 100, 150, 200]; 
+      smaPeriods.forEach(period => {
+        const smaKey = `sma${period}`;
+        if (serverSMAData[smaKey] && Array.isArray(serverSMAData[smaKey])) {
+          // Extract SMA values from the server response
+          const serverSMAValues = serverSMAData[smaKey];
+          
+          // Create an array of the same length as totalFetchedPoints
+          smaResultsFull[smaKey] = [];
+          
+          // Map the server-calculated SMA values to our chart timepoints
+          for (let i = 0; i < totalFetchedPoints; i++) {
+            if (i < serverSMAValues.length) {
+              smaResultsFull[smaKey][i] = serverSMAValues[i];
+            } else {
+              smaResultsFull[smaKey][i] = null;
+            }
+          }
+          
+          console.log(`Using server-calculated ${smaKey}: ${smaResultsFull[smaKey].filter(v => v !== null).length} valid points`);
+        } else {
+          // Fallback to calculating locally if server didn't provide this period
+          console.warn(`Server did not provide ${smaKey} data, calculating locally`);
+          if (allCloseValues.length >= period) {
+            smaResultsFull[smaKey] = calculateSMA(period, allCloseValues);
+          } else {
+            smaResultsFull[smaKey] = Array(totalFetchedPoints).fill(null);
+          }
+        }
+      });
+    } else {
+      // Fallback to calculating SMAs locally if server didn't provide SMA data
+      console.warn("Server did not provide SMA data, calculating locally");
+      
+      // Calculate each SMA period using chart data
+      const smaPeriods = [20, 50, 100, 150, 200];
+      smaPeriods.forEach(period => {
+        if (allCloseValues.length >= period) {
+          smaResultsFull[`sma${period}`] = calculateSMA(period, allCloseValues);
+        } else {
+          smaResultsFull[`sma${period}`] = Array(totalFetchedPoints).fill(null);
+        }
+      });
+    }
+    
     // Safely calculate RSI with error handling
     let rsiFull: (number | null)[] = Array(totalFetchedPoints).fill(null);
     try {
@@ -226,6 +257,13 @@ export const fetchStockHistory = async (
       return isNaN(num) ? null : num;
     };
     
+    // Helper to extract dates with pattern matching - removing since it's not used
+    /*const dateStrFromPattern = (pattern: string, sampleStr: string) => {
+      const regex = new RegExp(pattern);
+      const match = regex.exec(sampleStr);
+      return match ? match[0] : null;
+    };*/
+    
     // Helper to handle both lowercase and uppercase field names from API
     const getField = (obj: any, field: string): any => {
       if (!obj || typeof obj !== 'object') return null;
@@ -245,19 +283,21 @@ export const fetchStockHistory = async (
       close: finalHistory.map((h: any) => safeNumber(getField(h, 'close'))),
       high: finalHistory.map((h: any) => safeNumber(getField(h, 'high'))),
       low: finalHistory.map((h: any) => safeNumber(getField(h, 'low'))),
-      // Slice the indicator results as well
-      sma20: smaResultsFull.sma20.slice(startIndex),
-      sma50: smaResultsFull.sma50.slice(startIndex),
-      sma100: smaResultsFull.sma100.slice(startIndex),
-      sma150: smaResultsFull.sma150.slice(startIndex),
-      sma200: smaResultsFull.sma200.slice(startIndex),
+      
+      // Slice indicators to the same period
+      sma20: smaResultsFull.sma20?.slice(startIndex) || [],
+      sma50: smaResultsFull.sma50?.slice(startIndex) || [],
+      sma100: smaResultsFull.sma100?.slice(startIndex) || [],
+      sma150: smaResultsFull.sma150?.slice(startIndex) || [],
+      sma200: smaResultsFull.sma200?.slice(startIndex) || [],
       rsi: rsiFull.slice(startIndex),
     };
     
     console.log(`Returning ${result.dates.length} data points for ${symbol}`);
     return result;
   } catch (error) {
-    console.error(`Error in fetchStockHistory for ${symbol}:`, error);
+    console.error(`Error fetching stock history for ${symbol}:`, error);
+
     // Return empty data on error
     return { 
       dates: [], prices: [], volume: [], open: [], close: [], high: [], low: [],
@@ -343,33 +383,50 @@ export const fetchPortfolio = async (): Promise<{
   holdings: PortfolioHolding[];
   summary: PortfolioSummary;
 }> => {
-  const response = await fetch(`${API_BASE_URL}/portfolio`);
-  if (!response.ok) throw new Error('Failed to fetch portfolio');
-  const data = await response.json();
-  const holdings: PortfolioHolding[] = data.holdings?.map((item: any) => ({
-    symbol: item.symbol,
-    name: item.name || 'N/A',
-    shares: item.shares || 0,
-    averageCost: item.averageCost || 0,
-    currentPrice: item.currentPrice || 0,
-    change: item.change || 0,
-    changePercent: item.changePercent || 0,
-    value: item.value || 0,
-    gain: item.gain || 0,
-    gainPercent: item.gainPercent || 0,
-    type: item.type || 'stock',
-    position: item.position || 0,
-  })) || [];
+  try {
+    const response = await fetch(`${API_BASE_URL}/portfolio`);
+    if (!response.ok) throw new Error(`Failed to fetch portfolio: ${response.status}`);
+    
+    const data = await response.json();
+    
+    // Map portfolio holdings from API response
+    const holdings: PortfolioHolding[] = data.holdings?.map((item: any) => {
+      // Create holding object with all available data
+      const holding: PortfolioHolding = {
+        symbol: item.symbol,
+        name: item.name || 'N/A',
+        shares: item.shares || 0,
+        averageCost: item.averageCost || 0,
+        currentPrice: item.currentPrice || 0,
+        change: item.change || 0,
+        changePercent: item.changePercent || 0,
+        value: item.value || 0,
+        gain: item.gain || 0,
+        gainPercent: item.gainPercent || 0,
+        type: item.type || 'stock',
+        position: item.position || 0,
+        preMarketPrice: item.preMarketPrice || 0,
+        postMarketPrice: item.postMarketPrice || 0,
+        marketState: item.marketState || 'REGULAR'
+      };
+      return holding;
+    }) || [];
+    
 
-  const summary: PortfolioSummary = data.summary || {
-    totalValue: 0,
-    totalGain: 0,
-    totalGainPercent: 0,
-    dayChange: 0,
-    dayChangePercent: 0,
-  };
-
-  return { holdings, summary };
+    
+    const summary: PortfolioSummary = data.summary || {
+      totalValue: 0,
+      totalGain: 0,
+      totalGainPercent: 0,
+      dayChange: 0,
+      dayChangePercent: 0,
+    };
+    
+    return { holdings, summary };
+  } catch (error) {
+    console.error('Error fetching portfolio:', error);
+    throw error;
+  }
 };
 
 // --- Watchlist Types (Define if needed or use inline) ---
@@ -379,6 +436,8 @@ export interface WatchlistItem {
   price?: number;
   change?: number;
   changePercent?: number;
+  preMarketPrice?: number;
+  marketState?: string;
 }
 
 // --- Watchlist Service Functions ---

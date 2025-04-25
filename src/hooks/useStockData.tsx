@@ -1,40 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchStock, fetchStockHistory, fetchPortfolio, fetchWatchlist, searchStocks, addToWatchlist, removeFromWatchlist, WatchlistItem } from '@/services/stockService';
+import type { StockHistoryData } from '@/api/stockApi';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://holdings-view.vercel.app/api';
-
-// Define the response type to match our updated API
-interface HistoryResponse {
-  symbol: string;
-  history: Array<{
-    date: string;
-    open: number | null;
-    high: number | null;
-    low: number | null;
-    close: number | null;
-    volume: number;
-    change: number;
-    changePercent: number;
-  }>;
-}
-
-export interface StockHistoryData {
-  dates: string[];
-  prices: (number | null)[];
-  volume: (number | null)[];
-  high: (number | null)[];
-  low: (number | null)[];
-  open: (number | null)[];
-  close: (number | null)[];
-  sma20?: (number | null)[];
-  sma50?: (number | null)[];
-  sma100?: (number | null)[];
-  sma150?: (number | null)[];
-  sma200?: (number | null)[];
-  rsi?: (number | null)[];
-}
 
 export function useStock(symbol: string) {
   return useQuery({
@@ -50,7 +20,7 @@ export function useStockHistory(
   period: string = '1y',
   interval: string = '1d' // Add interval parameter with default
 ) {
-  return useQuery<StockHistoryData>({
+  return useQuery<StockHistoryData, Error>({
     // Include interval in the queryKey for unique caching
     queryKey: ['stockHistory', symbol, period, interval],
     // Pass interval to the fetch function

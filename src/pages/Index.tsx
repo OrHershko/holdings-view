@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import Header from '@/components/Header';
 import PortfolioSummary from '@/components/PortfolioSummary';
 import StockChart from '@/components/StockChart';
@@ -32,6 +32,9 @@ const Index = () => {
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
   const { data: portfolioData } = usePortfolio();
   const { data: stockData } = useStock(selectedStock || '');
+  
+  // Reference to the chart section for scrolling
+  const chartRef = useRef<HTMLDivElement>(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activeItem, setActiveItem] = useState('home');
   const [isAddStockDialogOpen, setIsAddStockDialogOpen] = useState(false);
@@ -53,9 +56,22 @@ const Index = () => {
 
   const toggleMobileSidebar = () => setMobileSidebarOpen(!mobileSidebarOpen);
   
-  const handleSelectStock = (symbol: string) => {
+  const handleStockClick = (symbol: string) => {
     setSelectedStock(symbol);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    setTimeout(() => {
+      if (chartRef.current) {
+        chartRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center' // או 'end' לניסוי
+        });
+    
+        window.scrollBy({
+          top: 100, 
+          behavior: 'smooth'
+        });
+      }
+    }, 100);
   };
 
   
@@ -130,7 +146,8 @@ const handleDragEnd = async (event: any) => {
                 <div className="lg:col-span-2">
                   <PortfolioSummary />
 
-                  {/* Selected Stock Chart */}
+                  {/* Selected Stock Chart - with ref for scrolling */}
+                  <div ref={chartRef}>
                   {selectedStock && stockData && (
                     <StockChart 
                       symbol={stockData.symbol}
@@ -142,6 +159,7 @@ const handleDragEnd = async (event: any) => {
                       volume={stockData.volume}
                     />
                   )}
+                  </div>
 
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-lg font-medium ml-1 text-white">Your Holdings</h2>
@@ -175,7 +193,7 @@ const handleDragEnd = async (event: any) => {
                           key={holding.symbol}
                           id={holding.symbol}
                           {...holding}
-                          onClick={() => handleSelectStock(holding.symbol)}
+                          onClick={() => handleStockClick(holding.symbol)}
                           onEdit={() => setEditingHolding({
                             symbol: holding.symbol,
                             name: holding.name,
@@ -190,7 +208,7 @@ const handleDragEnd = async (event: any) => {
                 {/* Right column - Auxiliary data */}
                 <div className="lg:col-span-1">
                   <MarketOverview portfolio={portfolioData?.holdings.map((holding) => holding.symbol) || []} />
-                  <WatchlistCard onSelectStock={handleSelectStock} />
+                  <WatchlistCard onSelectStock={handleStockClick} />
                 </div>
               </div>
             </main>
