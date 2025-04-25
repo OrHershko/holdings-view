@@ -101,16 +101,16 @@ const StockCard: React.FC<StockCardProps> = ({
               </div>
               <div>
                 <p className="text-ios-gray">Average Cost</p>
-                <p>${averageCost.toFixed(2)}</p>
+                <p>${typeof averageCost === 'number' ? averageCost.toFixed(2) : '--'}</p>
               </div>
               <div>
                 <p className="text-ios-gray">Value</p>
-                <p>${value.toFixed(2)}</p>
+                <p>${typeof value === 'number' ? value.toFixed(2) : '--'}</p>
               </div>
               <div>
                 <p className="text-ios-gray">Total Gain/Loss</p>
                 <p className={isPositiveGain ? 'text-ios-green' : 'text-ios-red'}>
-                  {isPositiveGain ? '+' : ''}{gainPercent.toFixed(2)}%
+                  {isPositiveGain ? '+' : ''}{typeof gainPercent === 'number' ? gainPercent.toFixed(2) : '--'}%
                 </p>
               </div>
             </div>
@@ -123,10 +123,10 @@ const StockCard: React.FC<StockCardProps> = ({
           <div className="flex justify-end mb-3">
             <div className="text-right">
               <p className="text-xs text-ios-gray font-medium">Current Price</p>
-              <p className="font-medium">${currentPrice.toFixed(2)}</p>
+              <p className="font-medium">${typeof currentPrice === 'number' ? currentPrice.toFixed(2) : '--'}</p>
               <div className={`flex items-center justify-end text-xs ${isPositiveChange ? 'text-ios-green' : 'text-ios-red'}`}>
                 {isPositiveChange ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
-                <span>{isPositiveChange ? '+' : ''}{change.toFixed(2)} ({changePercent.toFixed(2)}%)</span>
+                <span>{isPositiveChange ? '+' : ''}{typeof change === 'number' ? change.toFixed(2) : '--'} ({typeof changePercent === 'number' ? changePercent.toFixed(2) : '--'}%)</span>
               </div>
             </div>
           </div>
@@ -137,7 +137,7 @@ const StockCard: React.FC<StockCardProps> = ({
               {marketState === 'PRE' && preMarketPrice > 0 && (
                 <div className="text-right">
                   <p className="text-xs text-ios-gray font-medium">Pre-Market</p>
-                  <p className="font-medium">${preMarketPrice.toFixed(2)}</p>
+                  <p className="font-medium">${typeof preMarketPrice === 'number' ? preMarketPrice.toFixed(2) : '--'}</p>
                   <div className={`flex items-center justify-end text-xs ${preMarketPrice > currentPrice ? 'text-ios-green' : 'text-ios-red'}`}>
                     {preMarketPrice > currentPrice ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
                     <span>
@@ -152,7 +152,7 @@ const StockCard: React.FC<StockCardProps> = ({
               {marketState === 'POST' && postMarketPrice > 0 && (
                 <div className="text-right">
                   <p className="text-xs text-ios-gray font-medium">After Hours</p>
-                  <p className="font-medium">${postMarketPrice.toFixed(2)}</p>
+                  <p className="font-medium">${typeof postMarketPrice === 'number' ? postMarketPrice.toFixed(2) : '--'}</p>
                   <div className={`flex items-center justify-end text-xs ${postMarketPrice > currentPrice ? 'text-ios-green' : 'text-ios-red'}`}>
                     {postMarketPrice > currentPrice ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
                     <span>

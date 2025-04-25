@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
+import { updateStockInFirestore, removeStockFromFirestore } from '@/services/firebaseService';
 
 interface EditHoldingDialogProps {
   isOpen: boolean;
@@ -29,22 +30,13 @@ const EditHoldingDialog: React.FC<EditHoldingDialogProps> = ({ isOpen, onClose, 
     setIsLoading(true);
 
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://holdings-view.vercel.app/api';
-      const response = await fetch(`${API_BASE_URL}/portfolio/update`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          symbol: holding.symbol,
-          shares: parseFloat(shares),
-          averageCost: parseFloat(averageCost),
-        }),
+      // Use Firebase service to update the stock
+      await updateStockInFirestore({
+        symbol: holding.symbol,
+        name: holding.name,
+        shares: Number(shares),
+        averageCost: Number(averageCost)
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to update holding');
-      }
 
       // 1. Invalidate the query
       await queryClient.invalidateQueries({ queryKey: ['portfolio'] });
@@ -71,14 +63,8 @@ const EditHoldingDialog: React.FC<EditHoldingDialogProps> = ({ isOpen, onClose, 
     setIsLoading(true);
 
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://holdings-view.vercel.app/api';
-      const response = await fetch(`${API_BASE_URL}/portfolio/delete/${holding.symbol}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete holding');
-      }
+      // Use Firebase service to remove the stock
+      await removeStockFromFirestore(holding.symbol);
 
       // 1. Invalidate the query (don't refetch here)
       await queryClient.invalidateQueries({ queryKey: ['portfolio'] });

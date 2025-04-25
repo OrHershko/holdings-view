@@ -1,27 +1,8 @@
 import { StockData, StockHistoryData, PortfolioHolding, PortfolioSummary, NewsArticle } from '@/api/stockApi';
 import { SMA, RSI } from 'technicalindicators';
+import { fetchWithAuth, API_BASE_URL } from './apiService';
 
-// Read base URL from environment variable with robust fallback strategy
-// 1. Use VITE_API_BASE_URL from env if available
-// 2. Check if we're in development mode (import.meta.env.DEV)
-// 3. Use deployment URL as final fallback
-const getApiBaseUrl = () => {
-  // Check if we have a defined API base URL in environment
-  const envApiUrl = import.meta.env.VITE_API_BASE_URL;
-  if (envApiUrl) {
-    return envApiUrl;
-  }
-  
-  // In development mode, use localhost
-  if (import.meta.env.DEV) {
-    return 'http://localhost:8000/api';
-  }
-  
-  // Production fallback
-  return 'https://holdings-view.vercel.app/api';
-};
-
-const API_BASE_URL = getApiBaseUrl();
+// API_BASE_URL is imported from apiService.ts
 
 console.log(`Using API Base URL: ${API_BASE_URL}`); // Log for debugging
 
@@ -55,7 +36,7 @@ const handleApiError = (error: any, context: string): never => {
 
 export const fetchStock = async (symbol: string): Promise<StockData> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/stock/${symbol}`);
+    const response = await fetchWithAuth(`${API_BASE_URL}/stock/${symbol}`);
     
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Failed to read error response');
@@ -95,7 +76,7 @@ export const fetchStockHistory = async (
     console.log(`Fetching history for ${symbol} with period=${fetchPeriod}, interval=${interval} from ${API_BASE_URL}`);
     
     // Use the extended period for fetching data and tell the backend to calculate SMAs
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/history/${symbol}?period=${fetchPeriod}&interval=${interval}&calculate_sma=true`);
+    const response = await fetchWithAuth(`${API_BASE_URL}/history/${symbol}?period=${fetchPeriod}&interval=${interval}&calculate_sma=true`);
     
     if (!response.ok) {
       const errorBody = await response.text().catch(() => 'Failed to read error response');
@@ -384,7 +365,7 @@ export const fetchPortfolio = async (): Promise<{
   summary: PortfolioSummary;
 }> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/portfolio`);
+    const response = await fetchWithAuth(`${API_BASE_URL}/portfolio`);
     if (!response.ok) throw new Error(`Failed to fetch portfolio: ${response.status}`);
     
     const data = await response.json();
@@ -443,13 +424,13 @@ export interface WatchlistItem {
 // --- Watchlist Service Functions ---
 
 export const fetchWatchlist = async (): Promise<WatchlistItem[]> => {
-  const response = await fetch(`${API_BASE_URL}/watchlist`);
+  const response = await fetchWithAuth(`${API_BASE_URL}/watchlist`);
   if (!response.ok) throw new Error('Failed to fetch watchlist');
   return response.json();
 };
 
 export const addToWatchlist = async (symbol: string): Promise<{ message: string }> => {
-  const response = await fetch(`${API_BASE_URL}/watchlist/add/${symbol.toUpperCase()}`, {
+  const response = await fetchWithAuth(`${API_BASE_URL}/watchlist/add/${symbol.toUpperCase()}`, {
     method: 'POST',
   });
   if (!response.ok) {
@@ -460,7 +441,7 @@ export const addToWatchlist = async (symbol: string): Promise<{ message: string 
 };
 
 export const removeFromWatchlist = async (symbol: string): Promise<{ message: string }> => {
-  const response = await fetch(`${API_BASE_URL}/watchlist/remove/${symbol.toUpperCase()}`, {
+  const response = await fetchWithAuth(`${API_BASE_URL}/watchlist/remove/${symbol.toUpperCase()}`, {
     method: 'DELETE',
   });
   if (!response.ok) {
@@ -471,7 +452,7 @@ export const removeFromWatchlist = async (symbol: string): Promise<{ message: st
 };
 
 export const searchStocks = async (query: string): Promise<StockData[]> => {
-  const response = await fetch(`${API_BASE_URL}/search?q=${encodeURIComponent(query)}`);
+  const response = await fetchWithAuth(`${API_BASE_URL}/search?q=${encodeURIComponent(query)}`);
   if (!response.ok) throw new Error('Failed to search stocks');
   const data = await response.json();
   // Assuming backend returns a list of stock-like objects
@@ -488,7 +469,7 @@ export const searchStocks = async (query: string): Promise<StockData[]> => {
 
 export const fetchNews = async (symbol: string): Promise<NewsArticle[]> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/news/${symbol}`);
+    const response = await fetchWithAuth(`${API_BASE_URL}/news/${symbol}`);
     
     // Check if response is ok
     if (!response.ok) {

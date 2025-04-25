@@ -1,8 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchStock, fetchStockHistory, fetchPortfolio, fetchWatchlist, searchStocks, addToWatchlist, removeFromWatchlist, WatchlistItem } from '@/services/stockService';
-import type { StockHistoryData } from '@/api/stockApi';
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+import type { StockHistoryData, StockData } from '@/api/stockApi';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://holdings-view.vercel.app/api';
 
@@ -89,52 +87,18 @@ export const useStockInfo = (symbol: string) => {
   return useQuery({
     queryKey: ['stockInfo', symbol],
     queryFn: async () => {
-      const response = await axios.get(`${API_BASE_URL}/stock/${symbol}`);
-      return response.data;
+      const response = await fetch(`${API_BASE_URL}/stock/${symbol}`);
+      return response.json();
     },
     refetchOnWindowFocus: false,
   });
 };
 
-export const useMultipleStockInfo = (symbols: string[]) => {
-  // Create a state to track loading status
-  const [isLoading, setIsLoading] = useState(true);
-  const [data, setData] = useState<any[]>([]);
-  const [error, setError] = useState<Error | null>(null);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!symbols.length) {
-        setData([]);
-        setIsLoading(false);
-        return;
-      }
-
-      setIsLoading(true);
-      setError(null);
-      
-      try {
-        const requests = symbols.map(symbol => 
-          axios.get(`${API_BASE_URL}/stock/${symbol}`)
-            .then(response => response.data)
-            .catch(error => {
-              console.error(`Error fetching data for ${symbol}:`, error);
-              return null; // Return null for failed requests
-            })
-        );
-        
-        const results = await Promise.all(requests);
-        setData(results.filter(Boolean)); // Filter out nulls (failed requests)
-      } catch (error) {
-        console.error("Error fetching multiple stock data:", error);
-        setError(error instanceof Error ? error : new Error('Unknown error'));
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [symbols.join(',')]); // Dependencies: all symbols joined as string
-
-  return { data, isLoading, error };
-};
+export function useMultipleStockInfo(symbols: string[]) {
+  return useQuery<StockData[], Error>({
+    queryKey: ['multipleStockInfo', symbols],
+    queryFn: () => Promise.all(symbols.map(fetchStock)),
+    enabled: symbols.length > 0,
+    staleTime: 60000, // 1 minute
+  });
+}

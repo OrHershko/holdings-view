@@ -12,11 +12,12 @@ import yfinance as yf
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import os
-import math
 from datetime import datetime
+import firebase_admin
+from firebase_admin import auth as firebase_auth, credentials
 
 # --- Database Setup (SQLAlchemy) ---
-from sqlalchemy import create_engine, Column, String, Float, Integer
+from sqlalchemy import create_engine, Column, String, Float, Integer, DateTime
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import text
@@ -64,9 +65,16 @@ except Exception as e:
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+# Initialize Firebase Admin SDK
+firebase_creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+if not firebase_creds_path:
+    raise ValueError("GOOGLE_APPLICATION_CREDENTIALS must be set for Firebase Admin SDK")
+firebase_admin.initialize_app(credentials.Certificate(firebase_creds_path))
+
 # --- Database Models ---
 class HoldingDB(Base):
     __tablename__ = "holdings"
+    user_id = Column(String, primary_key=True, index=True)
     symbol = Column(String, primary_key=True, index=True)
     shares = Column(Float, nullable=False)
     averageCost = Column(Float, nullable=False)
@@ -75,7 +83,17 @@ class HoldingDB(Base):
 
 class WatchlistDB(Base):
     __tablename__ = "watchlist"
+    user_id = Column(String, primary_key=True, index=True)
     symbol = Column(String, primary_key=True, index=True)
+
+
+class UserDB(Base):
+    __tablename__ = "users"
+    uid         = Column(String, primary_key=True, index=True)
+    email       = Column(String, nullable=False, unique=True)
+    displayName = Column(String)
+    createdAt   = Column(DateTime, default=datetime.utcnow)
+    updatedAt   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 # Create tables if they don't exist
 try:
@@ -92,6 +110,29 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# Dependency to get current user from Firebase token
+def get_current_user(request: Request, db: Session = Depends(get_db)) -> str:
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    id_token = auth_header.split(" ")[1]
+    try:
+        decoded_token = firebase_auth.verify_id_token(id_token)
+        uid = decoded_token.get("uid")
+        # Ensure user exists in DB
+        user = db.query(UserDB).get(uid)
+        if not user:
+            user = UserDB(
+                uid=uid,
+                email=decoded_token.get("email", ""),
+                displayName=decoded_token.get("name", "")
+            )
+            db.add(user)
+            db.commit()
+        return uid
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 # --- Helper Functions 
 @lru_cache()
@@ -316,9 +357,9 @@ logger = logging.getLogger(__name__)
 # --- Refactored API Routes --- 
 
 @app.get("/api/portfolio")
-def get_portfolio(db: Session = Depends(get_db)):
+def get_portfolio(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
-        db_holdings = db.query(HoldingDB).order_by(HoldingDB.position).all()
+        db_holdings = db.query(HoldingDB).filter(HoldingDB.user_id == user_id).order_by(HoldingDB.position).all()
     except SQLAlchemyError as e:
          print(f"Database error fetching holdings: {e}")
          raise HTTPException(status_code=500, detail="Database error fetching portfolio.")
@@ -417,15 +458,15 @@ def get_portfolio(db: Session = Depends(get_db)):
 
 
 @app.post("/api/portfolio/add")
-def add_to_portfolio(holding_data: HoldingCreate, db: Session = Depends(get_db)):
+def add_to_portfolio(holding_data: HoldingCreate, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     # Check if holding exists
-    db_holding = db.query(HoldingDB).filter(HoldingDB.symbol == holding_data.symbol).first()
+    db_holding = db.query(HoldingDB).filter(HoldingDB.user_id == user_id, HoldingDB.symbol == holding_data.symbol).first()
     if db_holding:
         raise HTTPException(status_code=400, detail="Holding already exists. Use PUT to update.")
     
-    last_position = db.query(HoldingDB).count()
+    last_position = db.query(HoldingDB).filter(HoldingDB.user_id == user_id).count()
 
-    new_holding = HoldingDB(**holding_data.model_dump(), position=last_position)
+    new_holding = HoldingDB(**holding_data.model_dump(), position=last_position, user_id=user_id)
     
     try:
         db.add(new_holding)
@@ -438,8 +479,8 @@ def add_to_portfolio(holding_data: HoldingCreate, db: Session = Depends(get_db))
         raise HTTPException(status_code=500, detail="Database error adding holding.")
 
 @app.put("/api/portfolio/update")
-def update_holding(symbol: str = Body(...), shares: float = Body(...), averageCost: float = Body(...), db: Session = Depends(get_db)):
-    db_holding = db.query(HoldingDB).filter(HoldingDB.symbol == symbol).first()
+def update_holding(symbol: str = Body(...), shares: float = Body(...), averageCost: float = Body(...), user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    db_holding = db.query(HoldingDB).filter(HoldingDB.user_id == user_id, HoldingDB.symbol == symbol).first()
     if not db_holding:
         raise HTTPException(status_code=404, detail="Holding not found")
         
@@ -455,8 +496,8 @@ def update_holding(symbol: str = Body(...), shares: float = Body(...), averageCo
         raise HTTPException(status_code=500, detail="Database error updating holding.")
 
 @app.delete("/api/portfolio/delete/{symbol}")
-def delete_holding(symbol: str, db: Session = Depends(get_db)):
-    db_holding = db.query(HoldingDB).filter(HoldingDB.symbol == symbol).first()
+def delete_holding(symbol: str, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    db_holding = db.query(HoldingDB).filter(HoldingDB.user_id == user_id, HoldingDB.symbol == symbol).first()
     if not db_holding:
         raise HTTPException(status_code=404, detail="Holding not found")
         
@@ -464,7 +505,7 @@ def delete_holding(symbol: str, db: Session = Depends(get_db)):
         db.delete(db_holding)
         db.commit()
 
-        holdings = db.query(HoldingDB).order_by(HoldingDB.position).all()
+        holdings = db.query(HoldingDB).filter(HoldingDB.user_id == user_id).order_by(HoldingDB.position).all()
         for i, h in enumerate(holdings):
             h.position = i
         db.commit()
@@ -476,8 +517,8 @@ def delete_holding(symbol: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Database error deleting holding.")
 
 @app.post("/api/portfolio/reorder")
-def reorder_portfolio(request: ReorderRequest, db: Session = Depends(get_db)):
-    holdings = db.query(HoldingDB).all()
+def reorder_portfolio(request: ReorderRequest, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    holdings = db.query(HoldingDB).filter(HoldingDB.user_id == user_id).all()
     holding_map = {h.symbol: h for h in holdings}
 
     for i, symbol in enumerate(request.orderedSymbols):
@@ -489,7 +530,7 @@ def reorder_portfolio(request: ReorderRequest, db: Session = Depends(get_db)):
 
 
 @app.post("/api/portfolio/upload")
-def upload_portfolio(holdings: List[HoldingCreate], db: Session = Depends(get_db)):
+def upload_portfolio(holdings: List[HoldingCreate], user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     if not holdings:
         raise HTTPException(status_code=400, detail="No valid holdings data received.")
     
@@ -499,11 +540,11 @@ def upload_portfolio(holdings: List[HoldingCreate], db: Session = Depends(get_db
         
     try:
         # Delete existing portfolio
-        num_deleted = db.query(HoldingDB).delete()
+        num_deleted = db.query(HoldingDB).filter(HoldingDB.user_id == user_id).delete()
         print(f"Deleted {num_deleted} existing holdings before upload.")
         
         # Add new holdings
-        new_db_holdings = [HoldingDB(**h.dict(), position=i) for i, h in enumerate(holdings)]
+        new_db_holdings = [HoldingDB(**h.dict(), position=i, user_id=user_id) for i, h in enumerate(holdings)]
         db.add_all(new_db_holdings)
         
         db.commit()
@@ -518,9 +559,9 @@ def upload_portfolio(holdings: List[HoldingCreate], db: Session = Depends(get_db
         raise HTTPException(status_code=500, detail="Error processing portfolio upload.")
 
 @app.get("/api/watchlist", response_model=List[WatchlistItemResponse])
-def get_watchlist_details(db: Session = Depends(get_db)):
+def get_watchlist_details(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
-        watchlist_symbols_db = db.query(WatchlistDB.symbol).all()
+        watchlist_symbols_db = db.query(WatchlistDB.symbol).filter(WatchlistDB.user_id == user_id).all()
         watchlist_symbols = [s[0] for s in watchlist_symbols_db] # Extract symbols
     except SQLAlchemyError as e:
         print(f"Database error fetching watchlist: {e}")
@@ -548,17 +589,17 @@ def get_watchlist_details(db: Session = Depends(get_db)):
     return watchlist_details
 
 @app.post("/api/watchlist/add/{symbol}")
-def add_to_watchlist(symbol: str, db: Session = Depends(get_db)):
+def add_to_watchlist(symbol: str, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     if not symbol.isalnum():
         raise HTTPException(status_code=400, detail="Invalid symbol format")
     symbol_upper = symbol.upper()
     
-    db_symbol = db.query(WatchlistDB).filter(WatchlistDB.symbol == symbol_upper).first()
+    db_symbol = db.query(WatchlistDB).filter(WatchlistDB.user_id == user_id, WatchlistDB.symbol == symbol_upper).first()
     if db_symbol:
         return {"message": f"{symbol_upper} is already in watchlist"}
         
     
-    new_watchlist_item = WatchlistDB(symbol=symbol_upper)
+    new_watchlist_item = WatchlistDB(user_id=user_id, symbol=symbol_upper)
     try:
         db.add(new_watchlist_item)
         db.commit()
@@ -569,9 +610,9 @@ def add_to_watchlist(symbol: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Database error adding to watchlist.")
 
 @app.delete("/api/watchlist/remove/{symbol}")
-def remove_from_watchlist(symbol: str, db: Session = Depends(get_db)):
+def remove_from_watchlist(symbol: str, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     symbol_upper = symbol.upper()
-    db_symbol = db.query(WatchlistDB).filter(WatchlistDB.symbol == symbol_upper).first()
+    db_symbol = db.query(WatchlistDB).filter(WatchlistDB.user_id == user_id, WatchlistDB.symbol == symbol_upper).first()
     if not db_symbol:
         return {"message": f"{symbol_upper} not found in watchlist"}
         
@@ -808,8 +849,6 @@ def get_stock_news(symbol: str):
         logger.exception(f"Error fetching news for {symbol}: {e}")
         # Return empty list instead of raising an exception
         return []
-
-
 
 
 if __name__ == "__main__":

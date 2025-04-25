@@ -449,7 +449,7 @@ const StockChart: React.FC<StockChartProps> = ({
                   size="sm" 
                   variant="outline" 
                   onClick={() => toggleAllIndicators(true)}
-                  className="text-xs py-0 h-6 text-blue-300 hover:text-blue-200 border-blue-800 hover:bg-blue-900/30"
+                  className="text-xs py-0 h-6 text-gray-400 hover:text-gray-300 border-gray-700 hover:bg-gray-700/50"
                 >
                   Select All
                 </Button>

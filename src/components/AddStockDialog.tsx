@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { addStockToFirestore } from '@/services/firebaseService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,22 +25,13 @@ const AddStockDialog: React.FC<AddStockDialogProps> = ({ isOpen, onClose }) => {
     setIsLoading(true);
 
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://holdings-view.vercel.app/api';
-      const response = await fetch(`${API_BASE_URL}/portfolio/add`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          symbol: symbol.toUpperCase(),
-          shares: parseFloat(shares),
-          averageCost: parseFloat(averageCost),
-        }),
+      // Use Firebase service to add stock to user's portfolio
+      await addStockToFirestore({
+        symbol: symbol.toUpperCase(),
+        name: symbol.toUpperCase(), // Basic name - could be improved with API lookup
+        shares: Number(shares),
+        averageCost: Number(averageCost),
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to add stock');
-      }
 
       // 1. Invalidate the query
       await queryClient.invalidateQueries({ queryKey: ['portfolio'] });

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import Papa from 'papaparse'; // Import papaparse
+import { fetchWithAuth, API_BASE_URL } from '@/services/apiService';
 
 interface UploadCsvDialogProps {
   isOpen: boolean;
@@ -91,7 +92,7 @@ const UploadCsvDialog: React.FC<UploadCsvDialogProps> = ({ isOpen, onClose }) =>
         // --- Send data to backend --- 
         try {
           const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://holdings-view.vercel.app/api';
-          const response = await fetch(`${API_BASE_URL}/portfolio/upload`, {
+          const response = await fetchWithAuth(`${API_BASE_URL}/portfolio/upload`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

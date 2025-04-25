@@ -4,7 +4,9 @@ import PortfolioSummary from '@/components/PortfolioSummary';
 import StockChart from '@/components/StockChart';
 import StockCard from '@/components/StockCard';
 import WatchlistCard from '@/components/WatchlistCard';
-import { usePortfolio, useStock } from '@/hooks/useStockData';
+import { useStock, useMultipleStockInfo } from '@/hooks/useStockData';
+import { useFirebasePortfolio } from '@/hooks/useFirebasePortfolio';
+
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import Sidebar from '@/components/Sidebar';
 import MarketOverview from '@/components/MarketOverview';
@@ -30,9 +32,42 @@ const queryClientInstance = new QueryClient({
 
 const Index = () => {
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
-  const { data: portfolioData } = usePortfolio();
+
+  const { data: portfolioData, reorderPortfolio } = useFirebasePortfolio();
   const { data: stockData } = useStock(selectedStock || '');
-  
+  // Batch fetch live data for portfolio holdings
+  const symbols = portfolioData?.holdings.map(h => h.symbol) || [];
+  const { data: liveStockData = [] } = useMultipleStockInfo(symbols);
+  const mergedHoldings = portfolioData?.holdings.map(h => {
+    const live = liveStockData.find(s => s.symbol === h.symbol) || {} as any;
+    const price = live.price ?? h.currentPrice;
+    const change = live.change ?? h.change;
+    const changePercent = live.changePercent ?? h.changePercent;
+    const marketCap = live.marketCap ?? h.marketCap;
+    const volume = live.volume ?? h.volume;
+    const preMarketPrice = live.preMarketPrice ?? h.preMarketPrice;
+    const postMarketPrice = live.postMarketPrice ?? h.postMarketPrice;
+    const marketState = live.marketState ?? h.marketState;
+    const shares = h.shares;
+    const averageCost = h.averageCost;
+    const value = price * shares;
+    const gain = (price - averageCost) * shares;
+    const gainPercent = averageCost ? (gain / (averageCost * shares)) * 100 : 0;
+    return {
+      ...h,
+      currentPrice: price,
+      change,
+      changePercent,
+      marketCap,
+      volume,
+      preMarketPrice,
+      postMarketPrice,
+      marketState,
+      value,
+      gain,
+      gainPercent,
+    };
+  }) || [];
   // Reference to the chart section for scrolling
   const chartRef = useRef<HTMLDivElement>(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -63,7 +98,7 @@ const Index = () => {
       if (chartRef.current) {
         chartRef.current.scrollIntoView({
           behavior: 'smooth',
-          block: 'center' // או 'end' לניסוי
+          block: 'center' 
         });
     
         window.scrollBy({
@@ -85,32 +120,26 @@ const handleDragEnd = async (event: any) => {
 
   const sortedHoldings = [...portfolioData.holdings].sort((a, b) => a.position - b.position);
   const newOrder = arrayMove(sortedHoldings, oldIndex, newIndex);
-
-  await fetch(`${import.meta.env.VITE_API_BASE_URL}/portfolio/reorder`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      orderedSymbols: newOrder.map(h => h.symbol),
-    }),
-  });
-
-  await queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+  const orderedSymbols = newOrder.map(h => h.symbol);
+  
+  // Use the Firebase-specific reorder function
+  reorderPortfolio(orderedSymbols);
 };
 
 
   const handleAddStockClose = useCallback(async () => {
     setIsAddStockDialogOpen(false);
-    await queryClient.refetchQueries({ queryKey: ['portfolio'], type: 'active' });
+    await queryClient.refetchQueries({ queryKey: ['firebase-portfolio'], type: 'active' });
   }, [queryClient]);
 
   const handleEditHoldingClose = useCallback(async () => {
     setEditingHolding(null);
-    await queryClient.refetchQueries({ queryKey: ['portfolio'], type: 'active' });
+    await queryClient.refetchQueries({ queryKey: ['firebase-portfolio'], type: 'active' });
   }, [queryClient]);
 
   const handleUploadCsvClose = useCallback(async () => {
     setIsUploadCsvDialogOpen(false);
-    await queryClient.refetchQueries({ queryKey: ['portfolio'], type: 'active' });
+    await queryClient.refetchQueries({ queryKey: ['firebase-portfolio'], type: 'active' });
   }, [queryClient]);
 
   return (
@@ -185,10 +214,10 @@ const handleDragEnd = async (event: any) => {
                     onDragEnd={handleDragEnd}
                   >
                     <SortableContext
-                      items={portfolioData?.holdings.slice().sort((a, b) => a.position - b.position).map(h => h.symbol) || []}
+                      items={mergedHoldings.slice().sort((a, b) => a.position - b.position).map(h => h.symbol) || []}
                       strategy={verticalListSortingStrategy}
                     >
-                      {portfolioData?.holdings.slice().sort((a, b) => a.position - b.position).map((holding) => (
+                      {mergedHoldings.slice().sort((a, b) => a.position - b.position).map((holding) => (
                         <StockCard
                           key={holding.symbol}
                           id={holding.symbol}
