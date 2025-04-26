@@ -17,7 +17,6 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}): Pro
       const headers = {
         ...(options.headers || {}),
         'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
       };
       
       // Return fetch with the auth headers
