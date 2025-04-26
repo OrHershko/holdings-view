@@ -23,30 +23,43 @@ const MarketOverview: React.FC<MarketOverviewProps> = ({ portfolio }) => {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
 
-  useEffect(() => {
-    const fetchNews = async (symbol: string) => {
-      try {
-        // Use the service function instead of direct fetch to leverage proxies
-        const articles = await fetchNewsService(symbol);
-        
-        // Limit to 5 articles per symbol (the service may return more)
-        const limitedData = articles.slice(0, 5);
-        
-        setNews(prev => ({ ...prev, [symbol]: limitedData }));
-      } catch (error) {
-        console.error(`Error fetching news for ${symbol}:`, error);
-        setNews(prev => ({ ...prev, [symbol]: [] })); // Set empty array on error
-      }
-    };
+  // Use a ref to track current portfolio symbols for comparison
+  const prevPortfolioRef = React.useRef<string[]>([]);
 
-    if (portfolio.length > 0) {
-      setLoading(true);
-      Promise.all(portfolio.map(symbol => fetchNews(symbol)))
-        .finally(() => setLoading(false));
-    } else {
-      setNews({});
-      setLoading(false);
+  useEffect(() => {
+    // Don't refetch if only the order changed
+    const currentSymbols = [...portfolio].sort().join(',');
+    const prevSymbols = [...prevPortfolioRef.current].sort().join(',');
+    
+    // Only fetch if the symbols have actually changed (added or removed symbols)
+    if (currentSymbols !== prevSymbols) {
+      const fetchNews = async (symbol: string) => {
+        try {
+          // Use the service function instead of direct fetch
+          const articles = await fetchNewsService(symbol);
+          
+          // Limit to 5 articles per symbol
+          const limitedData = articles.slice(0, 5);
+          
+          setNews(prev => ({ ...prev, [symbol]: limitedData }));
+        } catch (error) {
+          console.error(`Error fetching news for ${symbol}:`, error);
+          setNews(prev => ({ ...prev, [symbol]: [] })); // Set empty array on error
+        }
+      };
+
+      if (portfolio.length > 0) {
+        setLoading(true);
+        Promise.all(portfolio.map(symbol => fetchNews(symbol)))
+          .finally(() => setLoading(false));
+      } else {
+        setNews({});
+        setLoading(false);
+      }
     }
+    
+    // Update ref for next comparison
+    prevPortfolioRef.current = portfolio;
   }, [portfolio]);
 
   // Combine news from all symbols into a single array

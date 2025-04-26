@@ -50,8 +50,32 @@ export const useFirebasePortfolio = () => {
   // Mutation for reordering the portfolio
   const reorderPortfolioMutation = useMutation({
     mutationFn: reorderPortfolioInFirestore,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['firebase-portfolio'] });
+    // Use onSuccess to update the cache without triggering a full refetch
+    onSuccess: (data, variables) => {
+      // Instead of invalidating and refetching, update the portfolio data directly
+      queryClient.setQueryData(['firebase-portfolio'], (oldData: any) => {
+        if (!oldData) return oldData;
+        
+        // Create a new array of holdings with updated positions
+        const updatedHoldings = [...oldData.holdings];
+        
+        // Update the positions based on the new order
+        variables.forEach((symbol, index) => {
+          const holdingIndex = updatedHoldings.findIndex(h => h.symbol === symbol);
+          if (holdingIndex !== -1) {
+            updatedHoldings[holdingIndex] = {
+              ...updatedHoldings[holdingIndex],
+              position: index
+            };
+          }
+        });
+        
+        // Return the updated data
+        return {
+          ...oldData,
+          holdings: updatedHoldings
+        };
+      });
     },
   });
   
@@ -64,6 +88,7 @@ export const useFirebasePortfolio = () => {
     removeStock: removeStockMutation.mutate,
     updateStock: updateStockMutation.mutate,
     reorderPortfolio: reorderPortfolioMutation.mutate,
+    isReordering: reorderPortfolioMutation.isPending,
   };
 };
 

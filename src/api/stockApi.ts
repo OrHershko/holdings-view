@@ -64,3 +64,7 @@ export interface NewsArticle {
   published: string;
 }
 
+export interface PortfolioData {
+  holdings: PortfolioHolding[];
+  summary: PortfolioSummary;
+}

@@ -245,6 +245,7 @@ def upload_portfolio(holdings: List[HoldingCreate], user_id: str = Depends(get_c
         db.add_all(new_db_holdings)
         
         db.commit()
+        logger.info("Uploaded %d holdings successfully.", len(holdings))
         return {"message": f"{len(holdings)} holdings uploaded successfully and portfolio overwritten."}
     except SQLAlchemyError as e:
         db.rollback()
@@ -315,7 +316,7 @@ def get_stock_history(symbol: str, period: str = Query("1d", enum=["1d", "5d", "
         logger.warning(f"Error fetching history for stock symbol {symbol}: {str(e)}")
         raise HTTPException(status_code=500, detail="Error fetching stock history.")
 
-@router.get("/api/stock/{symbol}/news", response_model=List[NewsArticle])
+@router.get("/api/news/{symbol}", response_model=List[NewsArticle])
 def get_stock_news(symbol: str):
     try:
         stock = yf.Ticker(symbol)

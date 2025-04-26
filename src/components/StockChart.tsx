@@ -140,13 +140,17 @@ const StockChart: React.FC<StockChartProps> = ({
   }, [selectedPeriod]);
 
   useEffect(() => {
-    // If the currently selected interval is not valid for this period, switch to a default
     if (!validIntervals.includes(selectedInterval)) {
       setSelectedInterval(getDefaultInterval(validIntervals, selectedInterval));
     }
   }, [selectedPeriod, selectedInterval, validIntervals]);
 
-  const { data, isLoading, error, refetch } = useStockHistory(symbol, selectedPeriod, selectedInterval);
+  // Use a more efficient caching strategy with explicit options to prevent unnecessary refetching
+  const { data, isLoading, error, refetch } = useStockHistory(symbol, selectedPeriod, selectedInterval, {
+    keepPreviousData: true, // Keep showing previous data while loading new data
+    refetchOnWindowFocus: false, // Only refetch when explicitly requested or stale
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+  });
 
   useEffect(() => {
     if (validIntervals.includes(selectedInterval)) {

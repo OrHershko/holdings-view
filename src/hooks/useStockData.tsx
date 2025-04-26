@@ -16,7 +16,8 @@ export function useStock(symbol: string) {
 export function useStockHistory(
   symbol: string,
   period: string = '1y',
-  interval: string = '1d' // Add interval parameter with default
+  interval: string = '1d', // Add interval parameter with default
+  options: any = {} // Allow custom query options
 ) {
   return useQuery<StockHistoryData, Error>({
     // Include interval in the queryKey for unique caching
@@ -25,7 +26,8 @@ export function useStockHistory(
     queryFn: () => fetchStockHistory(symbol, period, interval),
     enabled: !!symbol,
     staleTime: 300000, // 5 minutes
-    // Consider adding placeholderData or initialData if needed
+    // Apply any additional options passed
+    ...options
   });
 }
 
