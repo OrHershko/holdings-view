@@ -2,11 +2,12 @@ import logging
 from functools import lru_cache
 from typing import Dict, List, Optional, Union, Any
 from pydantic import BaseModel
-from fastapi import FastAPI, Query, HTTPException, Depends, Request
+from fastapi import FastAPI, Query, HTTPException, Depends, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import yfinance as yf
 import pandas as pd
+import numpy as np
 from datetime import datetime
 import firebase_admin
 from firebase_admin import auth as firebase_auth, credentials
@@ -45,7 +46,7 @@ try:
     # Configure SQLAlchemy engine with explicit dialect
     engine = create_engine(
         DATABASE_URL,
-        connect_args={"sslmode": "require"},  # Required for Neon/Vercel Postgres
+        #connect_args={"sslmode": "require"},  # Required for Neon/Vercel Postgres
         pool_pre_ping=True  # Add connection health check
     )
     
