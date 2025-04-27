@@ -78,6 +78,9 @@ class StockResponse(BaseModel):
     volume: Optional[int] = None
     type: Optional[str] = None
     marketState: Optional[str] = None
+    preMarketPrice: Optional[float] = None
+    postMarketPrice: Optional[float] = None
+    marketState: Optional[str] = None
     
 class HistoryResponse(BaseModel):
     symbol: str

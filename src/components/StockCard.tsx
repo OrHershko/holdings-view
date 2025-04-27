@@ -22,6 +22,7 @@ interface StockCardProps {
   onClick: () => void;
   onEdit: () => void;
   id: string;
+  isSavingOrder?: boolean;
 }
 
 const StockCard: React.FC<StockCardProps> = ({
@@ -40,7 +41,8 @@ const StockCard: React.FC<StockCardProps> = ({
   marketState,
   onClick,
   onEdit,
-  id
+  id,
+  isSavingOrder = false
 }) => {
 
   const isPositiveChange = change >= 0;

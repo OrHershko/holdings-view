@@ -5,7 +5,7 @@ import StockChart from "@/components/StockChart";
 import StockCard from "@/components/StockCard";
 import WatchlistCard from "@/components/WatchlistCard";
 import { useStock, useMultipleStockInfo } from "@/hooks/useStockData";
-import { useFirebasePortfolio } from "@/hooks/useFirebasePortfolio";
+import { useApiPortfolio } from "@/hooks/useApiPortfolio";
 
 import { QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import Sidebar from "@/components/Sidebar";
@@ -36,7 +36,7 @@ const PortfolioPage = () => {
   const queryClient = useQueryClient();
 
   /* ────────────────   DATA  ──────────────── */
-  const { data: portfolioData, reorderPortfolio, isReordering } = useFirebasePortfolio();
+  const { data: portfolioData, reorderPortfolio, isReordering } = useApiPortfolio();
   const symbols = portfolioData?.holdings.map((h) => h.symbol) || [];
   const { data: liveStockData = [] } = useMultipleStockInfo(symbols);
 
@@ -72,7 +72,7 @@ const PortfolioPage = () => {
   );
 
   /* ────────────────   DRAG END HANDLER  ──────────────── */
-  const handleDragEnd = async ({ active, over }: DragEndEvent) => {
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
     document.body.style.cursor = "default";
     if (!over || active.id === over.id) return;
 
@@ -85,9 +85,9 @@ const PortfolioPage = () => {
     setLocalOrder(newOrder);
 
     try {
-      await reorderPortfolio(newOrder); // persist to Firestore / backend
-      // We no longer need to invalidate the cache here - the mutation handles it
-      // and updates the cache directly without a full refetch
+      // Call the reorderPortfolio mutation (removed unnecessary await)
+      reorderPortfolio(newOrder); // persist to the database
+      // No need to invalidate cache - handled by the optimistic update in the mutation
     } catch (err) {
       console.error("reorder failed, rolling back", err);
       setLocalOrder(localOrder); // rollback on error
@@ -168,7 +168,9 @@ const PortfolioPage = () => {
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={() => document.body.style.cursor = "grabbing"} onDragEnd={handleDragEnd}>
                 <SortableContext items={localOrder} strategy={verticalListSortingStrategy}>
                   {localOrder.map((symbol) => {
-                    const holding = mergedHoldings.find((h) => h.symbol === symbol)!;
+                    // Find the holding by symbol, with null check
+                    const holding = mergedHoldings.find((h) => h.symbol === symbol);
+                    if (!holding) return null; // Skip if not found
                     return (
                       <StockCard
                         key={symbol}

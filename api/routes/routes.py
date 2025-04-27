@@ -225,28 +225,41 @@ def reorder_portfolio(request: ReorderRequest, user_id: str = Depends(get_curren
     db.commit()
     return {"message": "Portfolio reordered"}
 
-
 @router.post("/api/portfolio/upload")
 def upload_portfolio(holdings: List[HoldingCreate], user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    logger.debug("Received upload request for user_id=%s with %d holdings", user_id, len(holdings))
+
     if not holdings:
+        logger.warning("No holdings received for upload.")
         raise HTTPException(status_code=400, detail="No valid holdings data received.")
-    
+
     symbols_in_upload = {h.symbol for h in holdings}
     if len(symbols_in_upload) != len(holdings):
+        logger.warning("Duplicate symbols found in upload data: %s", [h.symbol for h in holdings])
         raise HTTPException(status_code=400, detail="Duplicate symbols found in upload data.")
-        
+
     try:
-        # Delete existing portfolio
+        logger.debug("Deleting existing holdings for user_id=%s", user_id)
         num_deleted = db.query(HoldingDB).filter(HoldingDB.user_id == user_id).delete()
         logger.info("Deleted %d existing holdings before upload.", num_deleted)
-        
-        # Add new holdings
-        new_db_holdings = [HoldingDB(**h.model_dump(), position=i, user_id=user_id) for i, h in enumerate(holdings)]
+
+        # הדפסת כל ההחזקות שמועלות
+        for i, h in enumerate(holdings):
+            logger.debug("Preparing holding #%d: %s", i, h.model_dump())
+
+        # הוספה
+        new_db_holdings = [
+            HoldingDB(**h.model_dump(), position=i, user_id=user_id)
+            for i, h in enumerate(holdings)
+        ]
         db.add_all(new_db_holdings)
         
+        logger.debug("Committing new holdings to database...")
         db.commit()
         logger.info("Uploaded %d holdings successfully.", len(holdings))
+        
         return {"message": f"{len(holdings)} holdings uploaded successfully and portfolio overwritten."}
+
     except SQLAlchemyError as e:
         db.rollback()
         logger.error("Database error uploading portfolio: %s", e)
@@ -298,7 +311,10 @@ def get_stock_data(symbol: str, user_id: str = Depends(get_current_user), db: Se
             changePercent=stock_data["changePercent"],
             preMarketPrice=stock_data.get("preMarketPrice"),
             postMarketPrice=stock_data.get("postMarketPrice"),
-            marketState=stock_data.get("marketState")
+            marketState=stock_data.get("marketState"),
+            marketCap=stock_data.get("marketCap"),
+            volume=stock_data.get("volume"),
+            type=stock_data.get("type"),
         )
     except Exception as e:
         print(f"Error fetching data for stock symbol {symbol}: {str(e)}")

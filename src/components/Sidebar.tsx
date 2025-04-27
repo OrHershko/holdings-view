@@ -2,7 +2,6 @@ import React from 'react';
 import { mockNavItems } from '../data/mockData';
 import * as LucideIcons from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { mockUser } from '../data/mockData';
 
 interface SidebarProps {
   activeItem: string;
@@ -14,13 +13,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, setActiveItem }) => {
 
   return (
     <div className="flex flex-col h-full bg-gray-800/60 backdrop-blur-md border-r border-gray-700/40 text-white">
-      <div className="p-4 flex items-center gap-2 border-b border-gray-700/40">
-        <div className="h-10 w-10 bg-purple-600 rounded-lg flex items-center justify-center">
-          <LucideIcons.LayoutGrid className="h-6 w-6 text-white" />
-        </div>
-        <span className="text-xl font-bold">Holdings View</span>
-      </div>
-      
+      <div className="p-4 border-b border-gray-700/40">
+  <img 
+    src="/src/assets/Logo.png" 
+    alt="HoldingsView Logo" 
+    className="w-full h-auto object-contain" 
+  />
+</div>
       <nav className="flex-1 py-4">
         <ul className="space-y-1 px-2">
           {mockNavItems.map((item) => {
@@ -46,13 +45,12 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, setActiveItem }) => {
       
       <div className="p-4 border-t border-gray-700/40 flex items-center gap-3">
         <img
-          src={mockUser.avatarUrl}
-          alt={mockUser.name}
+          src="https://img.freepik.com/free-psd/contact-icon-illustration-isolated_23-2151903337.jpg?t=st=1745326411~exp=1745330011~hmac=d71d7c11541d20acd7b0cb435800c8fd97b0dd47aa07bee47ff06269bd8f475a?auto=compress&cs=tinysrgb&w=100"
+          alt={currentUser?.displayName || currentUser?.email?.split('@')[0]}
           className="h-10 w-10 rounded-full object-cover"
         />
         <div>
-          <p className="font-medium text-sm">{currentUser?.displayName || currentUser?.email?.split('@')[0]}</p>
-          <p className="text-xs text-gray-400">{mockUser.accountType}</p>
+          <p className="ios-regular text-sm">{currentUser?.displayName || currentUser?.email?.split('@')[0]}</p>
         </div>
       </div>
     </div>

@@ -3,8 +3,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
-import Papa from 'papaparse'; // Import papaparse
-import { fetchWithAuth, API_BASE_URL } from '@/services/apiService';
+import Papa from 'papaparse';
+import { fetchWithAuth } from '@/services/apiService';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface UploadCsvDialogProps {
   isOpen: boolean;
@@ -22,10 +23,13 @@ const UploadCsvDialog: React.FC<UploadCsvDialogProps> = ({ isOpen, onClose }) =>
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient(); // Add this to invalidate cache
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0]) {
-      setSelectedFile(event.target.files[0]);
+    // Using optional chaining as recommended by the linter
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
     }
   };
 
@@ -105,6 +109,9 @@ const UploadCsvDialog: React.FC<UploadCsvDialogProps> = ({ isOpen, onClose }) =>
             throw new Error(errorData.detail || 'Failed to upload holdings');
           }
 
+          // Only invalidate the portfolio query since we're no longer using Firebase
+          queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+          
           toast({
             title: 'Upload Successful',
             description: `${formattedHoldings.length} holdings uploaded.`,
@@ -114,7 +121,7 @@ const UploadCsvDialog: React.FC<UploadCsvDialogProps> = ({ isOpen, onClose }) =>
           if (fileInputRef.current) {
             fileInputRef.current.value = ''; // Reset file input
           }
-          onClose(); // Close dialog and trigger refetch via parent
+          onClose(); // Close dialog
 
         } catch (error: any) {
           toast({
