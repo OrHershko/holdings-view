@@ -4,9 +4,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import components from our modules
-from database.database import create_tables, engine
-from models.models import Base
-from routes.routes import router as api_router
+from api.database.database import create_tables, engine
+from api.models.models import Base
+from api.routes.routes import router as api_router
 
 # Configure logging
 logging.basicConfig(
