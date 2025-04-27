@@ -6,13 +6,13 @@ from typing import List, Dict
 from fastapi import APIRouter, Query, HTTPException, Depends, Body, Request
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from database.database import get_db
-from models.models import HoldingDB, WatchlistDB, UserDB
-from schemas.schemas import (HoldingCreate, HoldingResponse, PortfolioSummary, 
+from api.database.database import get_db
+from api.models.models import HoldingDB, WatchlistDB, UserDB
+from api.schemas.schemas import (HoldingCreate, HoldingResponse, PortfolioSummary, 
                               StockData, StockHistoryData, NewsArticle, ReorderRequest, 
                               WatchlistItemResponse, StockResponse, HistoryResponse)
-from utils.utils import get_stock_info, calculate_sma_values
-from auth.auth import get_current_user
+from api.utils.utils import get_stock_info, calculate_sma_values
+from api.auth.auth import get_current_user
 
 router = APIRouter()
 

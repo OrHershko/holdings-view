@@ -4,8 +4,8 @@ import firebase_admin
 from firebase_admin import auth as firebase_auth, credentials
 from fastapi import Request, Depends, HTTPException
 from sqlalchemy.orm import Session
-from database.database import get_db
-from models.models import UserDB
+from api.database.database import get_db
+from api.models.models import UserDB
 
 # Set up logging
 logger = logging.getLogger(__name__)
