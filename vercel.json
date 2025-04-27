@@ -2,7 +2,7 @@
     "version": 2,
     "builds": [
       {
-        "src": "api/stock_api.py",
+        "src": "api/main.py",
         "use": "@vercel/python"
       },
       {
@@ -17,7 +17,7 @@
     "routes": [
       {
         "src": "/api/(.*)",
-        "dest": "api/stock_api.py"
+        "dest": "api/main.py"
       },
       {
         "handle": "filesystem"
