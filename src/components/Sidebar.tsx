@@ -2,6 +2,8 @@ import React from 'react';
 import { mockNavItems } from '../data/mockData';
 import * as LucideIcons from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import Logo from '@/assets/Logo.png';
+
 
 interface SidebarProps {
   activeItem: string;
@@ -15,7 +17,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, setActiveItem }) => {
     <div className="flex flex-col h-full bg-gray-800/60 backdrop-blur-md border-r border-gray-700/40 text-white">
       <div className="p-4 border-b border-gray-700/40">
   <img 
-    src="/src/assets/Logo.png" 
+    src={Logo} 
     alt="HoldingsView Logo" 
     className="w-full h-auto object-contain" 
   />
