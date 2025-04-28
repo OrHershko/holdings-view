@@ -232,45 +232,21 @@ const LightweightStockChart: React.FC<Props> = ({ data, indicators }) => {
           rsiRef.current.createPriceLine({ price: 30, color: '#34D399', lineStyle: LineStyle.Dashed, lineWidth: 1 });
           
           // Always create all SMA series but set visibility based on indicators
-          // SMA 20
-          sma20Ref.current = chartRef.current.addSeries(LineSeries, {
-            color: '#10B981', // Green for SMA 20
-            lineWidth: 1,
-            title: 'SMA 20',
-            visible: !!indicators?.sma20
-          });
+          const smaConfigs = [
+            { ref: sma20Ref, color: '#10B981', key: 'sma20' },
+            { ref: sma50Ref, color: '#3B82F6', key: 'sma50' },
+            { ref: sma100Ref, color: '#8B5CF6', key: 'sma100' },
+            { ref: sma150Ref, color: '#F59E0B', key: 'sma150' },
+            { ref: sma200Ref, color: '#EF4444', key: 'sma200' },
+          ];
           
-          // SMA 50
-          sma50Ref.current = chartRef.current.addSeries(LineSeries, {
-            color: '#3B82F6', // Blue for SMA 50
-            lineWidth: 1,
-            title: 'SMA 50',
-            visible: !!indicators?.sma50
-          });
-          
-          // SMA 100
-          sma100Ref.current = chartRef.current.addSeries(LineSeries, {
-            color: '#8B5CF6', // Purple for SMA 100
-            lineWidth: 1,
-            title: 'SMA 100',
-            visible: !!indicators?.sma100
-          });
-          
-          // SMA 150
-          sma150Ref.current = chartRef.current.addSeries(LineSeries, {
-            color: '#F59E0B', // Amber color for SMA 150
-            lineWidth: 1,
-            title: 'SMA 150',
-            visible: !!indicators?.sma150
-          });
-          
-          // SMA 200
-          sma200Ref.current = chartRef.current.addSeries(LineSeries, {
-            color: '#EF4444', // Red for SMA 200
-            lineWidth: 1,
-            title: 'SMA 200',
-            visible: !!indicators?.sma200
-          });
+          for (const { ref, color, key } of smaConfigs) {
+            ref.current = chartRef.current?.addSeries(LineSeries, {
+              color,
+              lineWidth: 1,
+              visible: !!indicators?.[key],
+            });
+          }
         } catch (chartSetupError) {
           console.error("Error creating chart:", chartSetupError);
           return;
@@ -327,45 +303,26 @@ const LightweightStockChart: React.FC<Props> = ({ data, indicators }) => {
         }
         
         // Always set SMA data regardless of visibility
-        if (sma20Ref.current) {
-          try {
-            sma20Ref.current.setData(safeSma20);
-          } catch (e) {
-            console.error("Error setting SMA20 data:", e);
-          }
-        }
+        const seriesDataMap = [
+          { ref: candleRef, data: safeCandles },
+          { ref: volumeRef, data: safeVolume },
+          { ref: rsiRef, data: safeRsi },
+          { ref: sma20Ref, data: safeSma20 },
+          { ref: sma50Ref, data: safeSma50 },
+          { ref: sma100Ref, data: safeSma100 },
+          { ref: sma150Ref, data: safeSma150 },
+          { ref: sma200Ref, data: safeSma200 },
+        ];
         
-        if (sma50Ref.current) {
-          try {
-            sma50Ref.current.setData(safeSma50);
-          } catch (e) {
-            console.error("Error setting SMA50 data:", e);
+        for (const { ref, data } of seriesDataMap) {
+          if (ref.current) {
+            try {
+              ref.current.setData(data);
+            } catch (e) {
+              console.error("Error setting data:", e);
+            }
           }
-        }
-        
-        if (sma100Ref.current) {
-          try {
-            sma100Ref.current.setData(safeSma100);
-          } catch (e) {
-            console.error("Error setting SMA100 data:", e);
-          }
-        }
-        
-        if (sma150Ref.current) {
-          try {
-            sma150Ref.current.setData(safeSma150);
-          } catch (e) {
-            console.error("Error setting SMA150 data:", e);
-          }
-        }
-        
-        if (sma200Ref.current) {
-          try {
-            sma200Ref.current.setData(safeSma200);
-          } catch (e) {
-            console.error("Error setting SMA200 data:", e);
-          }
-        }
+        }        
         
         if (chartRef.current) {
           try {
@@ -450,20 +407,61 @@ const LightweightStockChart: React.FC<Props> = ({ data, indicators }) => {
     }
   }, [indicators]); // Only run when indicators change
 
+  useEffect(() => {
+    if (!chartRef.current) return;
+  
+    try {
+      const seriesData = toSeriesData(data, indicators);
+  
+      const indicatorMap: Record<string, ISeriesApi<'Line'> | undefined> = {
+        sma20: sma20Ref.current,
+        sma50: sma50Ref.current,
+        sma100: sma100Ref.current,
+        sma150: sma150Ref.current,
+        sma200: sma200Ref.current,
+        rsi: rsiRef.current,
+      };
+  
+      for (const [key, ref] of Object.entries(indicatorMap)) {
+        if (!ref) continue;
+  
+        const visible = !!indicators?.[key];
+        ref.applyOptions({ visible });
+  
+        if (visible) {
+          const dataSeries = seriesData[key as keyof typeof seriesData] as LineData[] | undefined;
+          if (dataSeries && Array.isArray(dataSeries)) {
+            ref.setData(dataSeries);
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Error updating indicator visibility and data:", e);
+    }
+  }, [indicators, data]);
+
   /* cleanup once */
   useEffect(() => {
     return () => {
       try {
         if (chartRef.current) {
           // Properly clean up all series first
-          if (candleRef.current) candleRef.current = undefined;
-          if (volumeRef.current) volumeRef.current = undefined;
-          if (rsiRef.current) rsiRef.current = undefined;
-          if (sma20Ref.current) sma20Ref.current = undefined;
-          if (sma50Ref.current) sma50Ref.current = undefined;
-          if (sma100Ref.current) sma100Ref.current = undefined;
-          if (sma150Ref.current) sma150Ref.current = undefined;
-          if (sma200Ref.current) sma200Ref.current = undefined;
+          const allSeriesRefs = [
+            candleRef,
+            volumeRef,
+            rsiRef,
+            sma20Ref,
+            sma50Ref,
+            sma100Ref,
+            sma150Ref,
+            sma200Ref,
+          ];
+          
+          for (const ref of allSeriesRefs) {
+            if (ref.current) {
+              ref.current = undefined;
+            }
+          }          
 
           // Then remove the chart
           chartRef.current.remove();
