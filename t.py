@@ -1,5 +1,5 @@
 import yfinance as yf
 
-ticker = yf.Ticker("AAPL")
+ticker = yf.Ticker("ibit")
 print(ticker.info)
 

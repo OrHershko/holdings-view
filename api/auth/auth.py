@@ -6,6 +6,7 @@ from fastapi import Request, Depends, HTTPException
 from sqlalchemy.orm import Session
 from api.database.database import get_db
 from api.models.models import UserDB
+from sqlalchemy.exc import IntegrityError
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -37,7 +38,6 @@ except Exception as e:
     logger.critical(f"Failed to initialize Firebase: {str(e)}")
     # Still allow app to start, but auth will fail
 
-# Dependency to get current user from Firebase token
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> str:
     auth_header = request.headers.get("Authorization")
     logger.debug(f"Authorization header: {auth_header[:10]}..." if auth_header else "None")
@@ -60,18 +60,29 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> str:
         uid = decoded_token.get("uid")
         logger.info(f"Successfully verified token for user: {uid}")
         
-        # Ensure user exists in DB
+        # Try to find the user
         user = db.query(UserDB).filter(UserDB.uid == uid).first()
         if not user:
-            logger.info(f"Creating new user record for: {uid}")
+            logger.info(f"User not found, creating new user: {uid}")
             user = UserDB(
                 uid=uid,
                 email=decoded_token.get("email", ""),
                 displayName=decoded_token.get("name", "")
             )
-            db.add(user)
-            db.commit()
+            try:
+                db.add(user)
+                db.commit()
+                db.refresh(user)
+            except IntegrityError:
+                logger.warning(f"User {uid} already created concurrently. Ignoring IntegrityError.")
+                db.rollback()
+            except Exception as e:
+                logger.error(f"Unexpected error while creating user {uid}: {str(e)}")
+                db.rollback()
+                raise HTTPException(status_code=500, detail="Error creating user")
+        
         return uid
+
     except ValueError as e:
         logger.error(f"ValueError during token verification: {str(e)}")
         raise HTTPException(status_code=401, detail=f"Invalid token format: {str(e)}")
