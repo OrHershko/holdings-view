@@ -2,8 +2,6 @@ import logging
 from functools import lru_cache
 import yfinance as yf
 from typing import Dict, Any
-# Lightweight alternatives to pandas/numpy
-from typing import Dict, Any
 from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)

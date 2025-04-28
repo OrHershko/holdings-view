@@ -1,8 +1,6 @@
 import logging
 import re
-# Lightweight replacement for pandas functions
 from datetime import datetime
-from typing import List, Dict, Any, Union, Optional
 import yfinance as yf
 from typing import List, Dict
 from fastapi import APIRouter, Query, HTTPException, Depends, Body, Request
@@ -394,11 +392,18 @@ def get_stock_news(symbol: str):
                 if publish_time_str:
                     try:
                         # Parse the existing date string
-                        ts = pd.to_datetime(publish_time_str, errors='coerce')
-                        if pd.notna(ts):
-                             published_iso = ts.isoformat()
-                        else:
-                             logger.warning(f"Could not parse pubDate string '{publish_time_str}' for {symbol} news item.")
+                        try:
+                            # Try ISO 8601 format first
+                            ts = datetime.strptime(publish_time_str, "%Y-%m-%dT%H:%M:%SZ")
+                            published_iso = ts.isoformat()
+                        except ValueError:
+                            try:
+                                # Try RFC 2822/822 format (e.g., 'Mon, 02 Jan 2006 15:04:05 GMT')
+                                ts = datetime.strptime(publish_time_str, "%a, %d %b %Y %H:%M:%S %Z")
+                                published_iso = ts.isoformat()
+                            except Exception:
+                                logger.warning(f"Could not parse pubDate string '{publish_time_str}' for {symbol} news item.")
+                                published_iso = None
                     except Exception as dt_error: # Catch broader errors during parsing
                         logger.warning(f"Error parsing pubDate string '{publish_time_str}' for {symbol}: {dt_error}")
 
