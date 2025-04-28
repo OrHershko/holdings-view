@@ -127,11 +127,11 @@ const StockChart: React.FC<StockChartProps> = ({
 
   // Indicator visibility controls
   const [indicatorVisibility, setIndicatorVisibility] = useState<Record<string, boolean>>({
-    sma20: true,  // Show all SMA lines by default
-    sma50: true,
-    sma100: true,
-    sma150: true,
-    sma200: true,
+    sma20: false,  // Show all SMA lines by default
+    sma50: false,
+    sma100: false,
+    sma150: false,
+    sma200: false,
     rsi: false    // RSI off by default as it uses a different scale
   });
 
