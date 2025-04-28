@@ -156,7 +156,14 @@ def get_portfolio(user_id: str = Depends(get_current_user), db: Session = Depend
 
 @router.post("/api/portfolio/add")
 def add_to_portfolio(holding_data: HoldingCreate, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    # Check if holding exists
+    # Check if holding exists on Yahoo Finance
+    try:
+        stock_info = get_stock_info(holding_data.symbol)
+        if not stock_info or stock_info.get("price") is None:
+            raise HTTPException(status_code=400, detail="Invalid symbol: not found on market")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Symbol validation failed: {str(e)}")
+    
     db_holding = db.query(HoldingDB).filter(HoldingDB.user_id == user_id, HoldingDB.symbol == holding_data.symbol).first()
     if db_holding:
         raise HTTPException(status_code=400, detail="Holding already exists. Use PUT to update.")
@@ -233,6 +240,15 @@ def upload_portfolio(holdings: List[HoldingCreate], user_id: str = Depends(get_c
         logger.warning("No holdings received for upload.")
         raise HTTPException(status_code=400, detail="No valid holdings data received.")
 
+    # Check if all symbols exist on Yahoo Finance
+    try:
+        symbols_in_upload = {h.symbol for h in holdings}
+        invalid_symbols = [symbol for symbol in symbols_in_upload if not get_stock_info(symbol)]
+        if invalid_symbols:
+            raise HTTPException(status_code=400, detail=f"Invalid symbols found in upload data: {', '.join(invalid_symbols)}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Symbol validation failed: {str(e)}")
+
     symbols_in_upload = {h.symbol for h in holdings}
     if len(symbols_in_upload) != len(holdings):
         logger.warning("Duplicate symbols found in upload data: %s", [h.symbol for h in holdings])
@@ -303,6 +319,9 @@ def get_watchlist_details(user_id: str = Depends(get_current_user), db: Session 
 def get_stock_data(symbol: str, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
         stock_data = get_stock_info(symbol)
+        # Check if symbol exists on Yahoo Finance
+        if not stock_data or stock_data.get("price") is None:
+            raise HTTPException(status_code=400, detail="Invalid symbol: not found on market")
         return StockResponse(
             symbol=stock_data["symbol"],
             name=stock_data["name"],
@@ -413,6 +432,14 @@ def add_to_watchlist(symbol: str, user_id: str = Depends(get_current_user), db: 
     if not symbol.isalnum():
         raise HTTPException(status_code=400, detail="Invalid symbol format")
     symbol_upper = symbol.upper()
+
+    # Check if symbol exists on Yahoo Finance
+    try:
+        stock_info = get_stock_info(symbol_upper)
+        if not stock_info or stock_info.get("price") is None:
+            raise HTTPException(status_code=400, detail="Invalid symbol: not found on market")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Symbol validation failed: {str(e)}")
     
     db_symbol = db.query(WatchlistDB).filter(WatchlistDB.user_id == user_id, WatchlistDB.symbol == symbol_upper).first()
     if db_symbol:
