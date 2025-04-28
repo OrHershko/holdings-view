@@ -8,19 +8,11 @@
         "distDir": "dist",
         "buildCommand": "npm run build"
       }
-    },
-    {
-      "src": "api/main.py",
-      "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "handle": "filesystem"
-    },
-    {
-      "src": "/api/(.*)",
-      "dest": "api/main.py"
     },
     {
       "src": "/(.*)",
