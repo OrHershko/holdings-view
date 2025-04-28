@@ -13,12 +13,6 @@ const PortfolioSummary: React.FC = () => {
   const isPositiveGain = totalGain >= 0;
   const isPositiveDayChange = dayChange >= 0;
 
-  // Mock data for asset types (you'll need to update this based on your actual data)
-  const holdingsWithTypes = portfolioData.holdings.map(holding => ({
-    ...holding,
-    type: 'stock' as const // Default to stock, you'll need to determine the actual type
-  }));
-
   return (
     <Card className="ios-card">
       <CardContent className="space-y-6">
@@ -49,9 +43,9 @@ const PortfolioSummary: React.FC = () => {
           </div>
         </div>
         {/* Conditionally render Asset Allocation */} 
-        {holdingsWithTypes.length > 0 && (
+        {portfolioData.holdings.length > 0 && (
           <div>
-            <AssetAllocationChart holdings={holdingsWithTypes} />
+            <AssetAllocationChart holdings={portfolioData.holdings} />
           </div>
         )}
       </CardContent>

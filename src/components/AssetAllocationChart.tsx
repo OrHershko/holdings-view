@@ -1,16 +1,11 @@
 import React from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PortfolioHolding } from '@/api/stockApi';
 
-interface Holding {
-  symbol: string;
-  name: string;
-  value: number;
-  type: 'stock' | 'ETF' | 'crypto' | 'cash';
-}
 
 interface AssetAllocationChartProps {
-  holdings: Holding[];
+  holdings: PortfolioHolding[];
 }
 
 const COLORS = {
@@ -48,7 +43,7 @@ const AssetAllocationChart: React.FC<AssetAllocationChartProps> = ({ holdings })
   // Group holdings by type
   const assetTypes = {
     stocks: holdings.filter(h => h.type === 'stock').reduce((sum, h) => sum + h.value, 0),
-    ETF: holdings.filter(h => h.type === 'ETF').reduce((sum, h) => sum + h.value, 0),
+    ETF: holdings.filter(h => h.type === 'etf').reduce((sum, h) => sum + h.value, 0),
     crypto: holdings.filter(h => h.type === 'crypto').reduce((sum, h) => sum + h.value, 0),
     cash: holdings.filter(h => h.type === 'cash').reduce((sum, h) => sum + h.value, 0)
   };
