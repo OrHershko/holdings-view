@@ -21,7 +21,7 @@ export const getStockAnalysis = async (stockData: any, stockHistory?: any): Prom
     const prompt = createAnalysisPrompt(stockData, stockHistory);
     
     const response = await axios.post(
-      'https://openrouter.ai/api/v1/chat/completions',
+      `${import.meta.env.VITE_API_BASE_URL}/stock-analysis`,
       {
         model: 'deepseek/deepseek-r1:free',
         messages: [
@@ -44,14 +44,6 @@ Around 500 words.`,
         ],
         temperature: 0.2,
         max_tokens: 1500,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.OPENROUTER_API_KEY}`,
-          'HTTP-Referer': 'https://holdings-view.vercel.app',
-          'X-Title': 'Holdings View Stock Analysis',
-        },
       }
     );
 

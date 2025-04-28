@@ -680,3 +680,31 @@ def get_history(
             raise HTTPException(status_code=400, detail=detail)
             
         raise HTTPException(status_code=500, detail=f"Failed to fetch historical data for {symbol}: {error_msg}")
+
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+
+@router.post("/api/stock-analysis")
+async def stock_analysis_proxy(request: Request):
+    """
+    Proxy endpoint to send stock analysis prompts to OpenRouter AI safely.
+    """
+    try:
+        body = await request.json()
+        headers = {
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+        }
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                json=body,
+                headers=headers,
+            )
+
+        return response.json()
+    
+    except Exception as e:
+        logger.exception("Error forwarding stock analysis request: %s", str(e))
+        raise HTTPException(status_code=500, detail="Error forwarding stock analysis request.")
