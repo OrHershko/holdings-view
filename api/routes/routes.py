@@ -2,17 +2,18 @@ import logging
 import re
 from datetime import datetime
 import yfinance as yf
-from typing import List, Dict
+from typing import List
 from fastapi import APIRouter, Query, HTTPException, Depends, Body, Request
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from api.database.database import get_db
-from api.models.models import HoldingDB, WatchlistDB, UserDB
-from api.schemas.schemas import (HoldingCreate, HoldingResponse, PortfolioSummary, 
-                              StockData, StockHistoryData, NewsArticle, ReorderRequest, 
-                              WatchlistItemResponse, StockResponse, HistoryResponse)
+from api.models.models import HoldingDB, WatchlistDB
+from api.schemas.schemas import (HoldingCreate, ReorderRequest, 
+                              WatchlistItemResponse, StockResponse, HistoryResponse, NewsArticle)
 from api.utils.utils import get_stock_info, calculate_sma_values
 from api.auth.auth import get_current_user
+import numpy as np
+
 
 router = APIRouter()
 
@@ -338,6 +339,47 @@ def get_stock_data(symbol: str, user_id: str = Depends(get_current_user), db: Se
     except Exception as e:
         print(f"Error fetching data for stock symbol {symbol}: {str(e)}")
         raise HTTPException(status_code=500, detail="Error fetching stock data.")
+
+@router.get("/api/stock/{symbol}/detailed")
+def get_detailed_stock_data(symbol: str, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    Get detailed stock information directly from yfinance's info dictionary
+    """
+    def clean_numpy(obj):
+        if isinstance(obj, np.generic):
+            return obj.item()
+        if isinstance(obj, dict):
+            return {k: clean_numpy(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [clean_numpy(v) for v in obj]
+        return obj
+
+    try:
+        ticker = yf.Ticker(symbol)
+        info = ticker.info
+        
+        if not info:
+            raise HTTPException(status_code=404, detail=f"No detailed information available for {symbol}")
+        
+        # Convert None values to empty strings for serialization
+        for key in info:
+            if info[key] is None:
+                info[key] = ""
+
+        # Get History 1 month period 1d interval
+        history = ticker.history(period="1mo", interval="1d")
+        history = history.reset_index() 
+        history_records = history.to_dict(orient="records")
+        cleaned_history = clean_numpy(history_records)
+        
+        return {
+            "symbol": symbol,
+            "info": info,
+            "history": cleaned_history
+        }
+    except Exception as e:
+        logger.exception(f"Error fetching detailed data for {symbol}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error fetching detailed stock data.")
 
 @router.get("/api/stock/{symbol}/history", response_model=HistoryResponse)
 def get_stock_history(symbol: str, period: str = Query("1d", enum=["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"]), user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):

@@ -30,7 +30,9 @@ allowed_origins = [
     "http://localhost:8080",             # Local development
     "http://127.0.0.1:8080",
     "http://127.0.0.1:50967",             # Alternative local host format
+    "http://127.0.0.1:51096",             # Cascade browser preview URL
     FRONTEND_URL,                        # From environment variable
+    "*",                                  # For testing, allow all origins (remove in production)
 ]
 
 app.add_middleware(

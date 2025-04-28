@@ -7,7 +7,8 @@ import PeriodSelector from './charts/PeriodSelector';
 import IntervalSelector from './charts/IntervalSelector';
 import LightweightStockChart from './charts/LightweightStockChart';
 import { useToast } from '@/components/ui/use-toast';
-import { LineChartIcon, BarChart2Icon } from 'lucide-react';
+import { LineChartIcon, BarChart2Icon, InfoIcon } from 'lucide-react';
+import StockDetailedInfo from './StockDetailedInfo';
 
 interface StockChartProps {
   symbol: string;
@@ -121,6 +122,7 @@ const StockChart: React.FC<StockChartProps> = ({
   const [selectedPeriod, setSelectedPeriod] = useState<string>('1y');
   const [selectedInterval, setSelectedInterval] = useState<string>('1d');
   const [chartKey, setChartKey] = useState<number>(0); // Add key to force remount
+  const [showDetailedInfo, setShowDetailedInfo] = useState<boolean>(false);
 
   const { toast } = useToast();
   const isPositive = change >= 0;
@@ -549,11 +551,18 @@ const StockChart: React.FC<StockChartProps> = ({
           
           <ChartErrorBoundary symbol={symbol} onError={handleChartError}>
             <div className="px-5 py-6">
-              <LightweightStockChart
-                key={chartKey} 
-                data={chartData} 
-                indicators={indicatorVisibility}
-              />
+              <button 
+                className="w-full h-full p-0 m-0 bg-transparent border-none cursor-pointer" 
+                onClick={() => setShowDetailedInfo(!showDetailedInfo)}
+                title="Click for detailed information"
+                aria-label="Toggle detailed stock information"
+              >
+                <LightweightStockChart
+                  key={chartKey} 
+                  data={chartData} 
+                  indicators={indicatorVisibility}
+                />
+              </button>
             </div>
           </ChartErrorBoundary>
         </div>
@@ -572,6 +581,21 @@ const StockChart: React.FC<StockChartProps> = ({
             onIntervalChange={handleIntervalChange}
           />
         </div>
+        <div className="flex justify-center mb-2 mt-10">
+          <Button 
+            size="sm" 
+            variant={showDetailedInfo ? "secondary" : "outline"}
+            onClick={() => setShowDetailedInfo(!showDetailedInfo)}
+          >
+            <InfoIcon className="h-4 w-4 mr-1" />
+              {showDetailedInfo ? 'Hide Details' : 'Show Details'}
+            </Button>
+          </div>
+        {/* Stock Detailed Information */}
+        <StockDetailedInfo 
+          symbol={symbol} 
+          isOpen={showDetailedInfo} 
+        />
       </CardContent>
     </Card>
   );

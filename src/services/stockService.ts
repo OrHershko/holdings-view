@@ -503,3 +503,23 @@ export const fetchNews = async (symbol: string): Promise<NewsArticle[]> => {
     return [];
   }
 };
+
+/**
+ * Fetches detailed stock information directly from yfinance
+ * @param symbol Stock symbol to fetch detailed data for
+ * @returns Complete yfinance info object with all available data
+ */
+export const fetchDetailedStockInfo = async (symbol: string): Promise<any> => {
+  try {
+    const response = await fetchWithAuth(`${API_BASE_URL}/stock/${symbol}/detailed`);
+    
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Failed to read error response');
+      throw new Error(`Failed to fetch detailed stock data: ${response.status} ${errorText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    return handleApiError(error, `fetchDetailedStockInfo(${symbol})`);
+  }
+};
