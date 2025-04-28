@@ -101,7 +101,6 @@ const PortfolioPage = () => {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activeItem, setActiveItem] = useState("home");
   const [isAddStockDialogOpen, setIsAddStockDialogOpen] = useState(false);
-  const [isUploadCsvDialogOpen, setIsUploadCsvDialogOpen] = useState(false);
   const [editingHolding, setEditingHolding] = useState<{
     symbol: string;
     name: string;
@@ -160,7 +159,6 @@ const PortfolioPage = () => {
               <div className="flex justify-between items-center">
                 <h2 className="text-lg font-medium ml-1">Your Holdings</h2>
                 <div className="flex space-x-2">
-                  <Button onClick={() => setIsUploadCsvDialogOpen(true)} variant="outline" className="border-blue-600 hover:bg-blue-600/20">Upload CSV</Button>
                   <Button onClick={() => setIsAddStockDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700">Add Stock</Button>
                 </div>
               </div>
@@ -198,7 +196,6 @@ const PortfolioPage = () => {
       {/* Dialogs */}
       <AddStockDialog isOpen={isAddStockDialogOpen} onClose={() => afterDialogClose(setIsAddStockDialogOpen)} />
       {editingHolding && <EditHoldingDialog isOpen={!!editingHolding} onClose={() => afterDialogClose(() => setEditingHolding(null))} holding={editingHolding} />}
-      <UploadCsvDialog isOpen={isUploadCsvDialogOpen} onClose={() => afterDialogClose(setIsUploadCsvDialogOpen)} />
     </div>
   );
 };
