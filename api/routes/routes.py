@@ -13,7 +13,8 @@ from api.schemas.schemas import (HoldingCreate, ReorderRequest,
 from api.utils.utils import get_stock_info, calculate_sma_values
 from api.auth.auth import get_current_user
 import numpy as np
-
+import httpx
+import os
 
 router = APIRouter()
 
