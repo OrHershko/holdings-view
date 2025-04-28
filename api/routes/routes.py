@@ -1,6 +1,8 @@
 import logging
 import re
-import pandas as pd
+# Lightweight replacement for pandas functions
+from datetime import datetime
+from typing import List, Dict, Any, Union, Optional
 import yfinance as yf
 from typing import List, Dict
 from fastapi import APIRouter, Query, HTTPException, Depends, Body, Request
@@ -558,23 +560,39 @@ def get_history(
             logger.warning("Empty history data for %s", symbol)
             raise HTTPException(status_code=404, detail=f"No historical data found for {symbol}")
             
-        # Convert the DataFrame to a list of records - with explicit type checking
-        hist_dict = hist.reset_index().to_dict('records')
+        # Convert the DataFrame to a list of records - lightweight version
+        # First get the DataFrame as a dict
+        data_dict = {
+            col: hist[col].tolist() for col in hist.columns
+        }
+        # Add the index as a column (replaces reset_index)
+        data_dict['Datetime'] = hist.index.tolist()
+        
+        # Create records manually (replaces to_dict('records'))
+        hist_dict = []
+        for i in range(len(data_dict['Datetime'])):
+            record = {}
+            # Add index
+            record['Datetime'] = data_dict['Datetime'][i]
+            # Add all other columns
+            for col in hist.columns:
+                record[col] = data_dict[col][i]
+            hist_dict.append(record)
         
         # Convert all dates to string format for JSON serialization
         for item in hist_dict:
-            if 'Date' in item and pd.notnull(item['Date']):
+            if 'Date' in item and item['Date'] is not None:
                 item['date'] = item['Date'].strftime('%Y-%m-%d')
                 
             # If there's a datetime index with time, format it with time
-            if 'Datetime' in item and pd.notnull(item['Datetime']):
+            if 'Datetime' in item and item['Datetime'] is not None:
                 item['date'] = item['Datetime'].strftime('%Y-%m-%d %H:%M:%S')
         
         # Calculate SMAs if requested
         sma_data = None
         calculate_sma_param = request.query_params.get('calculate_sma')
         if calculate_sma_param and calculate_sma_param.lower() == 'true':
-            close_values = hist['Close'].values
+            close_values = hist['Close'].tolist()
             if len(close_values) > 0:
                 sma_data = calculate_sma_values(close_values)
         

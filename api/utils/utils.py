@@ -2,8 +2,8 @@ import logging
 from functools import lru_cache
 import yfinance as yf
 from typing import Dict, Any
-import pandas as pd
-import numpy as np
+# Lightweight alternatives to pandas/numpy
+from typing import Dict, Any
 from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
@@ -96,13 +96,15 @@ def calculate_sma_values(close_values):
         
         # Need enough data points for the SMA period
         if len(close_values) >= period:
-            # Use numpy's convolve for efficient moving average calculation
-            weights = np.ones(period) / period
-            sma_values = np.convolve(close_values, weights, mode='valid')
+            # Pure Python implementation of moving average
+            sma_values = []
+            for i in range(len(close_values) - period + 1):
+                window_sum = sum(close_values[i:i+period])
+                sma_values.append(window_sum / period)
             
             # Pad with None values at the beginning to match original array length
             padding = [None] * (period - 1)
-            sma_data[key] = padding + sma_values.tolist()
+            sma_data[key] = padding + sma_values
         else:
             # Not enough data for this period, fill with None
             sma_data[key] = [None] * len(close_values)
