@@ -48,7 +48,7 @@ Around 500 words.`,
       {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_OPENROUTER_API_KEY}`,
+          'Authorization': `Bearer ${import.meta.env.OPENROUTER_API_KEY}`,
           'HTTP-Referer': 'https://holdings-view.vercel.app',
           'X-Title': 'Holdings View Stock Analysis',
         },
