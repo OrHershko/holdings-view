@@ -71,12 +71,12 @@ const AIStockAnalysis: React.FC<AIStockAnalysisProps> = ({ stockData, stockHisto
   };
 
   return (
-    <Card className="w-full mt-4 dark:bg-gray-900/90 backdrop-blur-sm border-gray-700">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-xl flex items-center">
+    <div className="w-full">
+      <div className="flex flex-row items-center justify-between mb-2">
+        <div className="text-xl flex items-center font-semibold">
           <BrainCircuitIcon className="mr-2 h-5 w-5" />
           AI Stock Analysis
-        </CardTitle>
+        </div>
         <div className="flex items-center space-x-2">
           <select
             value={language}
@@ -98,40 +98,40 @@ const AIStockAnalysis: React.FC<AIStockAnalysisProps> = ({ stockData, stockHisto
             </Button>
           )}
         </div>
-      </CardHeader>
-
-      <CardContent>
-        {isLoading ? (
-          <div className="space-y-3">
-            {[...Array(8)].map((_, idx) => <Skeleton key={idx} className="h-4 w-full" />)}
+      </div>
+      {isLoading ? (
+        <div className="space-y-3">
+          {[...Array(8)].map((_, idx) => <Skeleton key={idx} className="h-4 w-full" />)}
+        </div>
+      ) : error ? (
+        <div className="flex flex-col items-center text-center p-4">
+          <AlertCircleIcon className="h-10 w-10 text-red-500 mb-2" />
+          <p className="text-red-500">{error}</p>
+          <Button 
+            onClick={fetchAnalysis}
+            variant="outline"
+            className="mt-3"
+            size="sm"
+          >
+            Try Again
+          </Button>
+        </div>
+      ) : analysis ? (
+        <ScrollArea className="h-[500px] pr-2">
+          <div
+            className={`space-y-2 leading-relaxed${language === 'he' ? ' text-right' : ''}`}
+            dir={language === 'he' ? 'rtl' : 'ltr'}
+          >
+            {formatAnalysis(analysis)}
           </div>
-        ) : error ? (
-          <div className="flex flex-col items-center text-center p-4">
-            <AlertCircleIcon className="h-10 w-10 text-red-500 mb-2" />
-            <p className="text-red-500">{error}</p>
-            <Button 
-              onClick={fetchAnalysis}
-              variant="outline"
-              className="mt-3"
-              size="sm"
-            >
-              Try Again
-            </Button>
-          </div>
-        ) : analysis ? (
-          <ScrollArea className="h-[500px] pr-2">
-            <div className="space-y-2 leading-relaxed">
-              {formatAnalysis(analysis)}
-            </div>
-          </ScrollArea>
-        ) : (
-          <div className="text-center p-8 text-gray-500">
-            <BrainCircuitIcon className="h-16 w-16 mx-auto mb-4 opacity-50" />
-            <p>Generate an AI-powered analysis based on stock data and price history.</p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+        </ScrollArea>
+      ) : (
+        <div className="text-center p-8 text-gray-500">
+          <BrainCircuitIcon className="h-16 w-16 mx-auto mb-4 opacity-50" />
+          <p>Generate an AI-powered analysis based on stock data and price history.</p>
+        </div>
+      )}
+    </div>
   );
 };
 
