@@ -17,6 +17,7 @@ const AIStockAnalysis: React.FC<AIStockAnalysisProps> = ({ stockData, stockHisto
   const [isLoading, setIsLoading] = useState(false);
   const [analysis, setAnalysis] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [language, setLanguage] = useState<'en' | 'he'>('en');
   const { toast } = useToast();
 
   const fetchAnalysis = async () => {
@@ -29,7 +30,7 @@ const AIStockAnalysis: React.FC<AIStockAnalysisProps> = ({ stockData, stockHisto
     setError(null);
 
     try {
-      const result = await getStockAnalysis(stockData, stockHistory);
+      const result = await getStockAnalysis(stockData, stockHistory, language);
       if (result.error) {
         setError(result.error);
         toast({
@@ -76,16 +77,27 @@ const AIStockAnalysis: React.FC<AIStockAnalysisProps> = ({ stockData, stockHisto
           <BrainCircuitIcon className="mr-2 h-5 w-5" />
           AI Stock Analysis
         </CardTitle>
-        {!isLoading && (
-          <Button 
-            onClick={fetchAnalysis} 
-            variant={analysis ? 'outline' : 'default'}
-            size="sm"
+        <div className="flex items-center space-x-2">
+          <select
+            value={language}
+            onChange={e => setLanguage(e.target.value as 'en' | 'he')}
+            className="border rounded px-2 py-1 text-sm bg-background dark:bg-gray-800"
+            aria-label="Select analysis language"
           >
-            {analysis ? <RefreshCwIcon className="h-4 w-4 mr-2" /> : <BrainCircuitIcon className="h-4 w-4 mr-2" />}
-            {analysis ? 'Refresh' : 'Analyze'}
-          </Button>
-        )}
+            <option value="en">English</option>
+            <option value="he">עברית</option>
+          </select>
+          {!isLoading && (
+            <Button 
+              onClick={fetchAnalysis} 
+              variant={analysis ? 'outline' : 'default'}
+              size="sm"
+            >
+              {analysis ? <RefreshCwIcon className="h-4 w-4 mr-2" /> : <BrainCircuitIcon className="h-4 w-4 mr-2" />}
+              {analysis ? 'Refresh' : 'Analyze'}
+            </Button>
+          )}
+        </div>
       </CardHeader>
 
       <CardContent>

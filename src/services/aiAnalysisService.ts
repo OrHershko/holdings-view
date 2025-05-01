@@ -11,15 +11,60 @@ export interface AIAnalysisResponse {
 /**
  * Get AI-generated technical and fundamental stock analysis
  */
-export const getStockAnalysis = async (stockData: any, stockHistory?: any): Promise<AIAnalysisResponse> => {
+export const getStockAnalysis = async (
+  stockData: any,
+  stockHistory?: any,
+  language: 'en' | 'he' = 'en'
+): Promise<AIAnalysisResponse> => {
   try {
     console.log('getStockAnalysis called', {
       hasStockData: !!stockData,
       hasStockHistory: !!stockHistory,
+      language,
     });
 
     const prompt = createAnalysisPrompt(stockData, stockHistory);
     
+    const languageInstruction = language === 'he'
+      ? 'Respond in Hebrew.'
+      : 'Respond in English.';
+
+    const systemPrompt = `
+${languageInstruction}
+You are a professional stock analyst. Your task is to generate a concise, actionable, and trader-focused analysis of a stock, using only the data provided.
+Do not invent or assume any data.
+Organize your response into the following sections (in this order):
+
+1. TOP-LINE SUMMARY
+  - Briefly summarize the stock's current situation and outlook in 2–3 sentences.
+
+2. TECHNICAL ANALYSIS
+  - Discuss price trends, support and resistance levels, moving averages, and volume patterns.
+  - Highlight any notable technical signals (e.g., breakouts, crossovers, overbought/oversold conditions).
+  - Reference specific data points from the provided information.
+
+3. FUNDAMENTAL SNAPSHOT
+  - Summarize key financial metrics (valuation, growth, profitability, analyst ratings, etc.).
+  - Note any strengths, weaknesses, or red flags visible in the data.
+
+4. TRADING STRATEGY
+  - Provide a clear recommendation: Buy, Sell, or Hold.
+  - If possible, suggest entry price, stop-loss, and target price, based on the data.
+  - Justify your recommendation with reference to both technical and fundamental factors.
+
+Formatting Rules:
+- Use plain text only. Do not use markdown, bold, or special formatting.
+- To emphasize, use indentation or spacing, not symbols.
+- Be concise and avoid repetition.
+- Limit your response to approximately 500 words.
+
+Instructions:
+- Analyze strictly the data provided.
+- Focus on actionable insights for traders.
+- If data is missing for a section, state "Insufficient data for this section."
+- Do not speculate or use external knowledge.
+`;
+
     const response = await axios.post(
       `${import.meta.env.VITE_API_BASE_URL}/stock-analysis`,
       {
@@ -27,15 +72,7 @@ export const getStockAnalysis = async (stockData: any, stockHistory?: any): Prom
         messages: [
           {
             role: 'system',
-            content: `
-You are a professional stock analyst writing concise, trader-oriented stock analysis. 
-Use ONLY the provided data — do not invent data. 
-Organize sections: TOP-LINE SUMMARY, TECHNICAL ANALYSIS, FUNDAMENTAL SNAPSHOT, TRADING STRATEGY.
-Use plain text only. No ** for bold, no markdown. 
-If you need to highlight something, use indentation. 
-Example for BAD: **Support levels**.
-Example for GOOD: Support levels.
-Around 500 words.`,
+            content: systemPrompt,
           },
           {
             role: 'user',
@@ -70,6 +107,8 @@ function createAnalysisPrompt(stockData: any, stockHistory?: any): string {
   const historySection = formatHistoricalData(stockHistory);
 
   return `
+Below is all the data available for this stock. If a value is 'N/A', the data is missing. Do not use any information not shown here.
+
 BASIC INFO:
 - Symbol: ${info.symbol || 'N/A'}
 - Sector: ${info.sector || 'N/A'}
