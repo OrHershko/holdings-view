@@ -709,3 +709,7 @@ async def stock_analysis_proxy(request: Request):
     except Exception as e:
         logger.exception("Error forwarding stock analysis request: %s", str(e))
         raise HTTPException(status_code=500, detail="Error forwarding stock analysis request.")
+
+@router.get("/api/ping")
+async def ping():
+    return {"message": "Pong!"}, 200
