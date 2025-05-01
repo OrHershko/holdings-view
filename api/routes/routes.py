@@ -712,4 +712,4 @@ async def stock_analysis_proxy(request: Request):
 
 @router.get("/api/ping")
 async def ping():
-    return {"message": "Pong!"}, 200
+    return {"message": "Pong!"}
