@@ -120,7 +120,7 @@ const AIStockAnalysis: React.FC<AIStockAnalysisProps> = ({ stockData, stockHisto
         <div
           className={`space-y-2 leading-relaxed${language === 'he' ? ' text-right' : ''}`}
           dir={language === 'he' ? 'rtl' : 'ltr'}
-          style={{ maxHeight: 500, overflowY: 'auto', paddingRight: 8 }}
+          style={{ paddingRight: 8 }}
         >
           {formatAnalysis(analysis)}
         </div>
