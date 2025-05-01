@@ -117,14 +117,13 @@ const AIStockAnalysis: React.FC<AIStockAnalysisProps> = ({ stockData, stockHisto
           </Button>
         </div>
       ) : analysis ? (
-        <ScrollArea className="h-[500px] pr-2">
-          <div
-            className={`space-y-2 leading-relaxed${language === 'he' ? ' text-right' : ''}`}
-            dir={language === 'he' ? 'rtl' : 'ltr'}
-          >
-            {formatAnalysis(analysis)}
-          </div>
-        </ScrollArea>
+        <div
+          className={`space-y-2 leading-relaxed${language === 'he' ? ' text-right' : ''}`}
+          dir={language === 'he' ? 'rtl' : 'ltr'}
+          style={{ maxHeight: 500, overflowY: 'auto', paddingRight: 8 }}
+        >
+          {formatAnalysis(analysis)}
+        </div>
       ) : (
         <div className="text-center p-8 text-gray-500">
           <BrainCircuitIcon className="h-16 w-16 mx-auto mb-4 opacity-50" />

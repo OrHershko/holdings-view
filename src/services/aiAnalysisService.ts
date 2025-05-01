@@ -53,7 +53,7 @@ Organize your response into the following sections (in this order):
   - Justify your recommendation with reference to both technical and fundamental factors.
 
 Formatting Rules:
-- Use plain text only. Do not use markdown, bold, or special formatting.
+- Use plain text only. DO NOT USE MARKDOWN, BOLD, OR SPECIAL FORMATTING. NO **, *, or any other markdown formatting.
 - To emphasize, use indentation or spacing, not symbols.
 - Be concise and avoid repetition.
 - Limit your response to approximately 500 words.
