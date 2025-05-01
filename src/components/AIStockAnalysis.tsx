@@ -100,7 +100,7 @@ const AIStockAnalysis: React.FC<AIStockAnalysisProps> = ({ stockData, stockHisto
         </div>
       </div>
       {isLoading ? (
-        <div className="space-y-3">
+        <div className="space-y-3 mt-4">
           {[...Array(8)].map((_, idx) => <Skeleton key={idx} className="h-4 w-full" />)}
         </div>
       ) : error ? (
