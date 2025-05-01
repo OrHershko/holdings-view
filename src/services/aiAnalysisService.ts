@@ -26,7 +26,7 @@ export const getStockAnalysis = async (
     const prompt = createAnalysisPrompt(stockData, stockHistory);
     
     const languageInstruction = language === 'he'
-      ? 'Respond in Hebrew.'
+      ? 'Respond ONLY in Hebrew. Do not use English at all unless its a technical term/name. Translate all section headers and your entire response to Hebrew.'
       : 'Respond in English.';
 
     const systemPrompt = `
