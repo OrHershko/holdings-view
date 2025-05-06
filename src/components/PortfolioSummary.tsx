@@ -1,15 +1,18 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { TrendingUp, TrendingDown } from 'lucide-react';
-import { usePortfolio } from '@/hooks/useStockData';
 import AssetAllocationChart from './AssetAllocationChart';
+import type { PortfolioHolding, PortfolioSummary as PortfolioSummaryType } from '@/api/stockApi'; // Import types
 
-const PortfolioSummary: React.FC = () => {
-  const { data: portfolioData } = usePortfolio();
+interface PortfolioSummaryProps {
+  portfolioSummary: PortfolioSummaryType;
+  holdings: PortfolioHolding[]; // Added for AssetAllocationChart
+}
 
-  if (!portfolioData) return null;
+const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({ portfolioSummary, holdings }) => {
+  if (!portfolioSummary) return null;
 
-  const { totalValue, totalGain, totalGainPercent, dayChange, dayChangePercent } = portfolioData.summary;
+  const { totalValue, totalGain, totalGainPercent, dayChange, dayChangePercent } = portfolioSummary;
   const isPositiveGain = totalGain >= 0;
   const isPositiveDayChange = dayChange >= 0;
 
@@ -19,7 +22,7 @@ const PortfolioSummary: React.FC = () => {
         <div className="text-center">
           <span className="text-s text-ios-gray">Portfolio Value</span>
           <div className="mt-2">
-            <div className="text-3xl font-ios-bold">
+            <div className="text-3xl font-ios-bold px-2 truncate">
               ${totalValue.toLocaleString()}
             </div>
           </div>
@@ -28,8 +31,8 @@ const PortfolioSummary: React.FC = () => {
           <span className="text-s text-ios-gray text-center">Total Change</span>
           <div className="mt-2">
             <div className={`text-s text-center flex items-center justify-center ${isPositiveGain ? 'text-ios-green' : 'text-ios-red'}`}>
-              {isPositiveGain ? <TrendingUp className="h-4 w-4 mr-1" /> : <TrendingDown className="h-4 w-4 mr-1" />}
-              <span>${Math.abs(totalGain).toLocaleString()} ({totalGainPercent.toFixed(2)}%)</span>
+              {isPositiveGain ? <TrendingUp className="h-4 w-4 mr-1 flex-shrink-0" /> : <TrendingDown className="h-4 w-4 mr-1 flex-shrink-0" />}
+              <span className="truncate">${Math.abs(totalGain).toLocaleString()} ({totalGainPercent.toFixed(2)}%)</span>
             </div>
           </div>
         </div>
@@ -37,15 +40,15 @@ const PortfolioSummary: React.FC = () => {
           <span className="text-s text-ios-gray text-center">Today Change</span>
           <div className="mt-2">
             <div className={`text-s text-center flex items-center justify-center ${isPositiveDayChange ? 'text-ios-green' : 'text-ios-red'}`}>
-              {isPositiveDayChange ? (<TrendingUp className="h-4 w-4 mr-1 p" />) : (<TrendingDown className="h-4 w-4 mr-1" />)}
-            <span>${Math.abs(dayChange).toLocaleString()} ({dayChangePercent.toFixed(2)}%)</span>
+              {isPositiveDayChange ? (<TrendingUp className="h-4 w-4 mr-1 flex-shrink-0" />) : (<TrendingDown className="h-4 w-4 mr-1 flex-shrink-0" />)}
+            <span className="truncate">${Math.abs(dayChange).toLocaleString()} ({dayChangePercent.toFixed(2)}%)</span>
             </div>
           </div>
         </div>
         {/* Conditionally render Asset Allocation */} 
-        {portfolioData.holdings.length > 0 && (
+        {holdings.length > 0 && (
           <div>
-            <AssetAllocationChart holdings={portfolioData.holdings} />
+            <AssetAllocationChart holdings={holdings} />
           </div>
         )}
       </CardContent>

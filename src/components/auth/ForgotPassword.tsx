@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Link } from 'react-router-dom';
+import { FirebaseError } from 'firebase/app';
 
 const ForgotPassword: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -23,7 +24,31 @@ const ForgotPassword: React.FC = () => {
       await resetPassword(email);
       setMessage('Check your email for password reset instructions');
     } catch (err) {
-      setError('Failed to reset password. Please check your email address.');
+      if (err instanceof FirebaseError) {
+        // Provide detailed error messages based on Firebase error codes
+        const errorCode = err.code;
+        switch (errorCode) {
+          case 'auth/invalid-email':
+            setError('The email address is not valid. Please enter a valid email.');
+            break;
+          case 'auth/user-not-found':
+            setError('No account found with this email address. Please check and try again.');
+            break;
+          case 'auth/missing-email':
+            setError('Please enter your email address.');
+            break;
+          case 'auth/too-many-requests':
+            setError('Too many requests. Please try again later.');
+            break;
+          case 'auth/network-request-failed':
+            setError('Network error. Please check your internet connection and try again.');
+            break;
+          default:
+            setError(`Password reset failed: ${err.message}`);
+        }
+      } else {
+        setError('Failed to reset password. Please try again later.');
+      }
       console.error(err);
     } finally {
       setLoading(false);

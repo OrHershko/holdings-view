@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchPortfolio } from '@/services/stockService';
 import { fetchWithAuth, API_BASE_URL } from '@/services/apiService';
 import { PortfolioHolding, PortfolioSummary } from '@/api/stockApi';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { useEffect } from 'react';
 
 // Interface for the PortfolioData structure
 interface PortfolioData {
@@ -22,12 +24,26 @@ interface HoldingCreate {
  */
 export const useApiPortfolio = () => {
   const queryClient = useQueryClient();
+  const auth = getAuth();
+  const userId = auth.currentUser?.uid;
+  
+  // Listen for auth state changes to invalidate queries when user changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      // Force refetch portfolio when user changes
+      queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+      queryClient.invalidateQueries({ queryKey: ['api-portfolio'] });
+    });
+    
+    return () => unsubscribe();
+  }, [queryClient]);
   
   // Query for fetching portfolio data
   const portfolioQuery = useQuery({
-    queryKey: ['portfolio'],
+    queryKey: ['api-portfolio', userId],
     queryFn: fetchPortfolio,
     staleTime: 1000 * 60 * 5, // 5 minutes
+    enabled: !!userId, // Only run if user is authenticated
   });
   
   // Mutation for adding a stock

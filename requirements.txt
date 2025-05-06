@@ -1,6 +1,6 @@
 fastapi==0.109.1
 uvicorn==0.27.0
-yfinance==0.2.54
+yfinance==0.2.58
 pydantic==2.6.1
 python-dotenv==1.0.1
 SQLAlchemy==1.4.41
@@ -8,5 +8,5 @@ psycopg2-binary
 alembic==1.13.1
 requests==2.31.0
 firebase-admin==6.0.1
-httpx==0.21.1
+httpx==0.26.0
 

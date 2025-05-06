@@ -29,11 +29,15 @@ const App = () => (
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             
-            {/* Protected routes */}
+            {/* Main page - accessible to guests and authenticated users */}
+            <Route path="/" element={<Index />} />
+
+            {/* Protected routes can be nested here if needed, or defined individually */}
+            {/* Example of how other routes could still be protected: 
             <Route element={<ProtectedRoute />}>
-              <Route path="/" element={<Index />} />
-              {/* Add other protected routes here */}
+              <Route path="/dashboard" element={<Dashboard />} /> 
             </Route>
+            */}
             
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />

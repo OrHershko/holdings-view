@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Link } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
+import { FirebaseError } from 'firebase/app';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -14,6 +16,7 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +27,37 @@ const Login: React.FC = () => {
       await login(email, password);
       navigate('/');
     } catch (err) {
-      setError('Failed to sign in. Please check your credentials.');
+      if (err instanceof FirebaseError) {
+        // Provide detailed error messages based on Firebase error codes
+        const errorCode = err.code;
+        switch (errorCode) {
+          case 'auth/invalid-email':
+            setError('Invalid email address format.');
+            break;
+          case 'auth/user-not-found':
+            setError('No account found with this email address.');
+            break;
+          case 'auth/wrong-password':
+            setError('Incorrect password. Please try again.');
+            break;
+          case 'auth/invalid-credential':
+            setError('Invalid email or password. Please try again.');
+            break;
+          case 'auth/too-many-requests':
+            setError('Too many failed login attempts. Please try again later or reset your password.');
+            break;
+          case 'auth/user-disabled':
+            setError('This account has been disabled. Please contact support.');
+            break;
+          case 'auth/network-request-failed':
+            setError('Network error. Please check your internet connection and try again.');
+            break;
+          default:
+            setError(`Login failed: ${err.message}`);
+        }
+      } else {
+        setError('Failed to sign in. Please try again later.');
+      }
       console.error(err);
     } finally {
       setLoading(false);
@@ -35,13 +68,13 @@ const Login: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
       <div className="w-full max-w-md p-8 space-y-6 bg-gray-800 rounded-lg shadow-xl border border-gray-700">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-white">Login to FinVest</h1>
+          <h1 className="text-2xl font-bold text-white">Login to HoldingView</h1>
           <p className="text-gray-400 mt-2">Access your investment portfolio</p>
         </div>
 
         {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
+          <Alert variant="destructive" className="border-red-600">
+            <AlertDescription className="text-red-600">{error}</AlertDescription>
           </Alert>
         )}
 
@@ -54,7 +87,6 @@ const Login: React.FC = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              placeholder="your.email@example.com"
               className="bg-gray-700 text-white border-gray-600"
             />
           </div>
@@ -66,15 +98,23 @@ const Login: React.FC = () => {
                 Forgot Password?
               </Link>
             </div>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="••••••••"
-              className="bg-gray-700 text-white border-gray-600"
-            />
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="bg-gray-700 text-white border-gray-600"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-2 top-2.5 text-gray-400 hover:text-white"
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
           </div>
 
           <Button 

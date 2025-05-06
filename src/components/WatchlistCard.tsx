@@ -1,46 +1,157 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
-import { useWatchlist, useAddToWatchlist, useRemoveFromWatchlist } from '@/hooks/useStockData';
+import { Plus, Trash2, TrendingUp, TrendingDown, Loader2, GripVertical } from 'lucide-react';
+import { useAddToWatchlist, useRemoveFromWatchlist, useReorderWatchlist } from '@/hooks/usePostgresData';
 import { useToast } from './ui/use-toast';
-import { WatchlistItem } from '@/services/stockService';
+import { WatchlistItem } from '@/hooks/usePostgresData';
+
+// dnd-kit imports
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy
+} from '@dnd-kit/sortable';
 
 interface WatchlistCardProps {
   onSelectStock: (symbol: string) => void;
+  watchlistItems: WatchlistItem[];
+  isGuest?: boolean;
+  onAddGuestWatchlistItem?: (symbol: string) => void;
+  onRemoveGuestWatchlistItem?: (symbol: string) => void;
+  onReorderGuestWatchlist?: (orderedSymbols: string[]) => void;
+  isWatchlistReordering?: boolean;
 }
 
-const WatchlistCard: React.FC<WatchlistCardProps> = ({ onSelectStock }) => {
+const WatchlistCard: React.FC<WatchlistCardProps> = ({
+  onSelectStock,
+  watchlistItems,
+  isGuest,
+  onAddGuestWatchlistItem,
+  onRemoveGuestWatchlistItem,
+  onReorderGuestWatchlist,
+  isWatchlistReordering
+}) => {
   const [newSymbol, setNewSymbol] = useState('');
-  const { data: watchlist, isLoading, error } = useWatchlist();
+  const isLoading = false;
+  const error = null;
+
   const { toast } = useToast();
+  const [localOrder, setLocalOrder] = useState<string[]>([]);
 
   const addMutation = useAddToWatchlist();
   const removeMutation = useRemoveFromWatchlist();
+  const reorderMutation = useReorderWatchlist();
+  
+  // Setup sensors for drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Update local order when watchlistItems prop changes
+  useEffect(() => {
+    if (watchlistItems && watchlistItems.length >= 0) {
+      setLocalOrder(watchlistItems.map(item => item.symbol));
+    }
+  }, [watchlistItems]);
+  
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (!over || active.id === over.id) return;
+    
+    const oldIndex = localOrder.indexOf(String(active.id));
+    const newIndex = localOrder.indexOf(String(over.id));
+    
+    if (oldIndex === -1 || newIndex === -1) return;
+    
+    const newOrder = arrayMove(localOrder, oldIndex, newIndex);
+    setLocalOrder(newOrder);
+    
+    if (isGuest && onReorderGuestWatchlist) {
+      onReorderGuestWatchlist(newOrder);
+    } else if (!isGuest) {
+      try {
+        reorderMutation.mutate(newOrder);
+      } catch (err) {
+        console.error("Reorder failed for user, rolling back UI", err);
+        setLocalOrder(arrayMove(newOrder, newIndex, oldIndex)); 
+      }
+    } else {
+      // Fallback or error if guest handler is missing
+      console.warn('WatchlistCard: Guest mode but onReorderGuestWatchlist not provided.');
+      setLocalOrder(arrayMove(newOrder, newIndex, oldIndex)); // Rollback optimistic update
+    }
+  };
 
   const handleAdd = () => {
     if (!newSymbol.trim()) return;
-    addMutation.mutate(newSymbol.trim().toUpperCase(), {
-      onSuccess: () => {
+    const symbol = newSymbol.trim().toUpperCase();
+
+    if (isGuest && onAddGuestWatchlistItem) {
+      onAddGuestWatchlistItem(symbol);
+      // Guest add usually doesn't need immediate server feedback for toast, Index.tsx handles state.
+      // toast({ title: "Added to Guest Watchlist", description: `${symbol} added.` });
+      setNewSymbol('');
+    } else if (!isGuest) {
+      const symbolExists = watchlistItems?.some(item => item.symbol === symbol);
+      if (symbolExists) {
+        toast({ 
+          title: "Already in Watchlist", 
+          description: `${symbol} is already in your watchlist.`
+        });
         setNewSymbol('');
-        toast({ title: "Added to Watchlist", description: `${newSymbol.toUpperCase()} added.`});
-      },
-      onError: (error: any) => {
-         toast({ title: "Error", description: error.message || "Failed to add stock.", variant: "destructive"});
+        return;
       }
-    });
+      addMutation.mutate(symbol, {
+        onSuccess: () => {
+          setNewSymbol('');
+          toast({ title: "Added to Watchlist", description: `${symbol} added.`});
+        },
+        onError: (error: any) => {
+          if (error.message?.includes('already in watchlist')) {
+            toast({ title: "Already in Watchlist", description: `${symbol} is already in your watchlist.`});
+          } else {
+            toast({ title: "Error", description: error.message || "Failed to add stock.", variant: "destructive"});
+          }
+        }
+      });
+    } else {
+      console.warn('WatchlistCard: Guest mode but onAddGuestWatchlistItem not provided.');
+    }
   };
 
   const handleRemove = (symbol: string) => {
-    removeMutation.mutate(symbol, {
-       onSuccess: () => {
-         toast({ title: "Removed from Watchlist", description: `${symbol} removed.`});
-       },
-       onError: (error: any) => {
-          toast({ title: "Error", description: error.message || "Failed to remove stock.", variant: "destructive"});
-       }
-    });
+    if (isGuest && onRemoveGuestWatchlistItem) {
+      onRemoveGuestWatchlistItem(symbol);
+      // toast({ title: "Removed from Guest Watchlist", description: `${symbol} removed.` });
+    } else if (!isGuest) {
+      removeMutation.mutate(symbol, {
+         onSuccess: () => {
+           toast({ title: "Removed from Watchlist", description: `${symbol} removed.`});
+         },
+         onError: (error: any) => {
+            toast({ title: "Error", description: error.message || "Failed to remove stock.", variant: "destructive"});
+         }
+      });
+    } else {
+      console.warn('WatchlistCard: Guest mode but onRemoveGuestWatchlistItem not provided.');
+    }
   };
     
   return (
@@ -60,10 +171,10 @@ const WatchlistCard: React.FC<WatchlistCardProps> = ({ onSelectStock }) => {
           <Button
             size="icon"
             onClick={handleAdd}
-            disabled={addMutation.isPending || !newSymbol.trim()}
+            disabled={(isGuest ? false : addMutation.isPending) || !newSymbol.trim()}
             className="bg-blue-600 hover:bg-blue-700"
           >
-            {addMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            {(isGuest ? false : addMutation.isPending) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
           </Button>
         </div>
         
@@ -73,69 +184,148 @@ const WatchlistCard: React.FC<WatchlistCardProps> = ({ onSelectStock }) => {
           </div>
         )}
         {error && <p className="text-center text-red-500">Error loading watchlist.</p>}
-        {!isLoading && !error && watchlist && watchlist.length === 0 && (
+        {!isLoading && !error && watchlistItems && watchlistItems.length === 0 && (
           <p className="text-center text-ios-gray">Your watchlist is empty.</p>
         )}
-        {!isLoading && !error && watchlist && watchlist.length > 0 && (
-          <div className="space-y-2">
-            {watchlist.map((stock: WatchlistItem) => {
-              const isPositiveChange = stock.change ? stock.change >= 0 : true;
-              return (
-            <div 
-              key={stock.symbol}
-                  className="flex items-center justify-between p-2 rounded hover:bg-gray-700/50 cursor-pointer group"
-            >
-                  <div onClick={() => onSelectStock(stock.symbol)} className="flex-grow">
-                <p className="font-medium">{stock.symbol}</p>
-                    {stock.name && <p className="text-xs text-ios-gray">{stock.name}</p>}
+        {!isLoading && !error && watchlistItems && watchlistItems.length > 0 && (
+          <DndContext 
+            sensors={sensors} 
+            collisionDetection={closestCenter} 
+            onDragStart={() => document.body.style.cursor = "grabbing"}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={localOrder} strategy={verticalListSortingStrategy}>
+              <div className="space-y-2">
+                {localOrder.map((symbol) => {
+                  const stock = watchlistItems.find(item => item.symbol === symbol);
+                  if (!stock) return null; // Skip if not found
+                  const isPositiveChange = stock.change ? stock.change >= 0 : true;
+                  
+                  return (
+                    <SortableWatchlistItem 
+                      key={symbol} 
+                      id={symbol}
+                      stock={stock}
+                      isPositiveChange={isPositiveChange}
+                      onSelectStock={onSelectStock}
+                      onRemove={handleRemove}
+                      isSavingOrder={isWatchlistReordering || false}
+                      isGuest={isGuest}
+                      isRemoving={removeMutation.isPending}
+                    />
+                  );
+                })}
               </div>
-                  <div className="text-right mx-4" onClick={() => onSelectStock(stock.symbol)}>
-                    {stock.price !== undefined && stock.price !== null ? (
-                        <>
-                <p className="font-medium">${stock.price.toFixed(2)}</p>
-                          {stock.marketState === 'PRE' && stock.preMarketPrice != null && (
-                              <p className="text-xs text-ios-gray">Pre: ${stock.preMarketPrice.toFixed(2)}</p>
-                          )}
-                          {stock.marketState === 'POST' && stock.afterHoursPrice != null && (
-                              <p className="text-xs text-ios-gray">AH: ${stock.afterHoursPrice.toFixed(2)}</p>
-                          )}
-                          {stock.changePercent !== undefined && stock.changePercent !== null ? (
-                              <div className={`flex items-center justify-end text-xs ${isPositiveChange ? 'text-ios-green' : 'text-ios-red'}`}>
-                                {isPositiveChange ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
-                                <span>{isPositiveChange ? '+' : ''}{stock.changePercent.toFixed(2)}%</span>
-                              </div>
-                          ) : (
-                             <p className="text-xs text-ios-gray">-</p>
-                          )}
-                        </>
-                    ) : (
-                        <p className="text-xs text-ios-gray">Loading...</p>
-                    )}
-                  </div>
-                   <Button
-                     variant="ghost"
-                     size="icon"
-                     onClick={(e) => {
-                       e.stopPropagation();
-                       handleRemove(stock.symbol);
-                     }}
-                     disabled={removeMutation.isPending && removeMutation.variables === stock.symbol}
-                     className="text-ios-gray hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                   >
-                      {removeMutation.isPending && removeMutation.variables === stock.symbol ? (
-                         <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                         <Trash2 className="h-4 w-4" />
-                      )}
-                   </Button>
-                </div>
-              );
-            })}
-              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </CardContent>
     </Card>
   );
 };
+
+// Sortable Item Component
+interface SortableWatchlistItemProps {
+  id: string;
+  stock: WatchlistItem;
+  isPositiveChange: boolean;
+  onSelectStock: (symbol: string) => void;
+  onRemove: (symbol: string) => void;
+  isSavingOrder: boolean;
+  isGuest?: boolean;
+  isRemoving?: boolean;
+}
+
+// SortableWatchlistItem component is defined below
+
+function SortableWatchlistItem({
+  id,
+  stock,
+  isPositiveChange,
+  onSelectStock,
+  onRemove,
+  isSavingOrder,
+  isGuest,
+  isRemoving
+}: SortableWatchlistItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id });
+
+  const itemStyle = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    transition,
+    zIndex: isDragging ? 10 : 1,
+    opacity: isDragging ? 0.8 : 1,
+    position: 'relative' as const,
+    background: isDragging ? 'rgba(63, 63, 70, 0.5)' : undefined,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={itemStyle}
+      className="flex items-center justify-between p-2 rounded hover:bg-gray-700/50 group"
+    >
+      {/* Drag handle */}
+      <div 
+        {...attributes} 
+        {...listeners}
+        className="mr-2 text-ios-gray hover:text-white cursor-grab active:cursor-grabbing"
+        aria-label="Drag to reorder"
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === ' ' || e.key === 'Enter') {
+            // Trigger the drag with space or enter key
+            e.preventDefault();
+          }
+        }}
+      >
+        <GripVertical size={16} />
+      </div>
+      
+      {/* Content */}
+      <div onClick={() => onSelectStock(stock.symbol)} className="flex-grow cursor-pointer">
+        <p className="font-medium truncate">{stock.symbol}</p>
+        {stock.name && <p className="text-xs text-ios-gray truncate">{stock.name}</p>}
+      </div>
+      
+      {/* Price and change */}
+      <div className="text-right mx-4 cursor-pointer min-w-[70px]" onClick={() => onSelectStock(stock.symbol)}>
+        {stock.price !== undefined && stock.price !== null ? (
+          <>
+            <p className="font-medium truncate">${stock.price.toFixed(2)}</p>
+            <div className={`text-xs flex items-center justify-end ${isPositiveChange ? 'text-ios-green' : 'text-ios-red'}`}>
+              {isPositiveChange ? 
+                <TrendingUp className="h-3 w-3 mr-1" /> : 
+                <TrendingDown className="h-3 w-3 mr-1" />
+              }
+              <span className="truncate">{stock.changePercent !== undefined ? stock.changePercent.toFixed(2) : '0.00'}%</span>
+            </div>
+          </>
+        ) : (
+          <p className="font-medium text-ios-gray">...</p>
+        )}
+      </div>
+      
+      {/* Delete button */}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => onRemove(stock.symbol)}
+        disabled={isSavingOrder || (isGuest ? false : isRemoving)}
+        className="opacity-0 group-hover:opacity-100 transition-opacity"
+      >
+        <Trash2 className="h-4 w-4 text-ios-gray hover:text-ios-red" />
+      </Button>
+    </div>
+  );
+}
 
 export default WatchlistCard;

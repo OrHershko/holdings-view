@@ -15,6 +15,7 @@ from api.auth.auth import get_current_user
 import numpy as np
 import httpx
 import os
+from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -318,7 +319,7 @@ def get_watchlist_details(user_id: str = Depends(get_current_user), db: Session 
     return watchlist_details
 
 @router.get("/api/stock/{symbol}", response_model=StockResponse)
-def get_stock_data(symbol: str, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_stock_data(symbol: str):
     try:
         stock_data = get_stock_info(symbol)
         # Check if symbol exists on Yahoo Finance
@@ -342,7 +343,7 @@ def get_stock_data(symbol: str, user_id: str = Depends(get_current_user), db: Se
         raise HTTPException(status_code=500, detail="Error fetching stock data.")
 
 @router.get("/api/stock/{symbol}/detailed")
-def get_detailed_stock_data(symbol: str, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_detailed_stock_data(symbol: str):
     """
     Get detailed stock information directly from yfinance's info dictionary
     """
@@ -372,6 +373,8 @@ def get_detailed_stock_data(symbol: str, user_id: str = Depends(get_current_user
         history = history.reset_index() 
         history_records = history.to_dict(orient="records")
         cleaned_history = clean_numpy(history_records)
+
+        print(info)
         
         return {
             "symbol": symbol,
@@ -383,7 +386,7 @@ def get_detailed_stock_data(symbol: str, user_id: str = Depends(get_current_user
         raise HTTPException(status_code=500, detail="Error fetching detailed stock data.")
 
 @router.get("/api/stock/{symbol}/history", response_model=HistoryResponse)
-def get_stock_history(symbol: str, period: str = Query("1d", enum=["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"]), user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_stock_history(symbol: str, period: str = Query("1d", enum=["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"])):
     try:
         stock_history = yf.Ticker(symbol).history(period=period)
         return HistoryResponse(
@@ -517,11 +520,82 @@ def remove_from_watchlist(symbol: str, user_id: str = Depends(get_current_user),
     try:
         db.delete(db_symbol)
         db.commit()
-        return {"message": f"{symbol_upper} removed from watchlist"}
+        # Reorder remaining symbols after deleting
+        watchlist_items = db.query(WatchlistDB).filter(WatchlistDB.user_id == user_id).order_by(WatchlistDB.position).all()
+        for i, item in enumerate(watchlist_items):
+            item.position = i
+        db.commit()
+        
+        return {"message": "Symbol removed from watchlist"}
     except SQLAlchemyError as e:
         db.rollback()
         logger.error("Database error removing from watchlist: %s", e)
         raise HTTPException(status_code=500, detail="Database error removing from watchlist.")
+
+class WatchlistReorderRequest(BaseModel):
+    symbols: List[str]
+
+
+@router.post("/api/watchlist/reorder")
+def reorder_watchlist(request: WatchlistReorderRequest, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Reorder symbols in user's watchlist"""
+    try:
+        # Get the current watchlist items for the user
+        current_watchlist = db.query(WatchlistDB).filter(WatchlistDB.user_id == user_id).all()
+        
+        # Create a set of current symbols for efficient lookup
+        current_symbols = {item.symbol for item in current_watchlist}
+        
+        # Validate that all symbols in the request exist in the watchlist
+        for symbol in request.symbols:
+            if symbol not in current_symbols:
+                raise HTTPException(status_code=400, detail=f"Symbol {symbol} not found in your watchlist")
+        
+        # Validate that all symbols from the watchlist are in the request
+        if len(current_symbols) != len(request.symbols):
+            missing_symbols = current_symbols - set(request.symbols)
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Reorder request is missing {len(missing_symbols)} symbols from your watchlist: {', '.join(missing_symbols)}"
+            )
+        
+        # Update the positions based on the new order
+        for position, symbol in enumerate(request.symbols):
+            db.query(WatchlistDB).filter(
+                WatchlistDB.user_id == user_id, 
+                WatchlistDB.symbol == symbol
+            ).update({"position": position})
+        
+        db.commit()
+        
+        # Return the updated watchlist
+        watchlist_items = db.query(WatchlistDB).filter(
+            WatchlistDB.user_id == user_id
+        ).order_by(WatchlistDB.position).all()
+        
+        result = []
+        for item in watchlist_items:
+            try:
+                # Get latest stock info to return
+                stock_info = get_stock_info(item.symbol)
+                result.append({
+                    "symbol": item.symbol,
+                    "name": stock_info.get("name", item.symbol),
+                    "price": stock_info.get("price"),
+                    "change": stock_info.get("change"),
+                    "changePercent": stock_info.get("changePercent"),
+                    "marketCap": stock_info.get("marketCap"),
+                })
+            except Exception as e:
+                # If we can't get stock info, just return the symbol
+                logger.warning(f"Error getting stock info for {item.symbol}: {e}")
+                result.append({"symbol": item.symbol, "name": item.symbol})
+        
+        return result
+    except SQLAlchemyError as e:
+        db.rollback()
+        logger.error("Database error reordering watchlist: %s", e)
+        raise HTTPException(status_code=500, detail="Database error reordering watchlist.")
 
 @router.get("/api/history/{symbol}", response_model=HistoryResponse)
 def get_history(

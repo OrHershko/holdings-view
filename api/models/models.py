@@ -16,6 +16,7 @@ class WatchlistDB(Base):
     __tablename__ = "watchlist"
     user_id = Column(String, primary_key=True, index=True)
     symbol = Column(String, primary_key=True, index=True)
+    position = Column(Integer, nullable=False, default=0)
 
 class UserDB(Base):
     __tablename__ = "users"

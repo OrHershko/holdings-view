@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
-import { updateStockInFirestore, removeStockFromFirestore } from '@/services/firebaseService';
+import { updateStock, removeStock } from '@/services/portfolioService';
 
 interface EditHoldingDialogProps {
   isOpen: boolean;
@@ -16,9 +16,12 @@ interface EditHoldingDialogProps {
     shares: number;
     averageCost: number;
   };
+  isGuest?: boolean;
+  onUpdateGuestHolding?: (symbol: string, data: { shares: number; averageCost: number }) => void;
+  onDeleteGuestHolding?: (symbol: string) => void;
 }
 
-const EditHoldingDialog: React.FC<EditHoldingDialogProps> = ({ isOpen, onClose, holding }) => {
+const EditHoldingDialog: React.FC<EditHoldingDialogProps> = ({ isOpen, onClose, holding, isGuest, onUpdateGuestHolding, onDeleteGuestHolding }): React.ReactElement | null => {
   const [shares, setShares] = useState(holding.shares.toString());
   const [averageCost, setAverageCost] = useState(holding.averageCost.toString());
   const [isLoading, setIsLoading] = useState(false);
@@ -29,29 +32,37 @@ const EditHoldingDialog: React.FC<EditHoldingDialogProps> = ({ isOpen, onClose, 
     e.preventDefault();
     setIsLoading(true);
 
+    const updatedShares = Number(shares);
+    const updatedAverageCost = Number(averageCost);
+
     try {
-      // Use Firebase service to update the stock
-      await updateStockInFirestore({
-        symbol: holding.symbol,
-        name: holding.name,
-        shares: Number(shares),
-        averageCost: Number(averageCost)
-      });
-
-      // 1. Invalidate the query
-      await queryClient.invalidateQueries({ queryKey: ['portfolio'] });
-
-      toast({
-        title: 'Success',
-        description: 'Holding updated successfully',
-      });
-
-      // 3. Close the dialog (will trigger parent refetch)
-      onClose();
+      if (isGuest && onUpdateGuestHolding) {
+        onUpdateGuestHolding(holding.symbol, { shares: updatedShares, averageCost: updatedAverageCost });
+        toast({
+          title: 'Success (Guest)',
+          description: 'Guest holding updated locally',
+        });
+        onClose();
+      } else if (!isGuest) {
+        await updateStock({
+          symbol: holding.symbol,
+          shares: updatedShares,
+          averageCost: updatedAverageCost
+        });
+        await queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+        toast({
+          title: 'Success',
+          description: 'Holding updated successfully',
+        });
+        onClose();
+      } else {
+        console.warn('EditHoldingDialog: Guest mode active but onUpdateGuestHolding not provided.');
+        throw new Error('Guest update function not provided');
+      }
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to update holding',
+        description: (error as Error).message || 'Failed to update holding',
         variant: 'destructive',
       });
     } finally {
@@ -63,24 +74,29 @@ const EditHoldingDialog: React.FC<EditHoldingDialogProps> = ({ isOpen, onClose, 
     setIsLoading(true);
 
     try {
-      // Use Firebase service to remove the stock
-      await removeStockFromFirestore(holding.symbol);
-
-      // 1. Invalidate the query (don't refetch here)
-      await queryClient.invalidateQueries({ queryKey: ['portfolio'] });
-
-      toast({
-        title: 'Success',
-        description: 'Holding deleted successfully',
-      });
-
-      // 2. Close the dialog (will trigger parent refetch)
-      onClose();
-
+      if (isGuest && onDeleteGuestHolding) {
+        onDeleteGuestHolding(holding.symbol);
+        toast({
+          title: 'Success (Guest)',
+          description: 'Guest holding deleted locally',
+        });
+        onClose();
+      } else if (!isGuest) {
+        await removeStock(holding.symbol);
+        await queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+        toast({
+          title: 'Success',
+          description: 'Holding deleted successfully',
+        });
+        onClose();
+      } else {
+        console.warn('EditHoldingDialog: Guest mode active but onDeleteGuestHolding not provided.');
+        throw new Error('Guest delete function not provided');
+      }
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to delete holding',
+        description: (error as Error).message || 'Failed to delete holding',
         variant: 'destructive',
       });
     } finally {

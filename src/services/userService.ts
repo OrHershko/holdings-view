@@ -1,14 +1,15 @@
-import { doc, setDoc, getDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
-import { db, auth } from '../config/firebase';
-import { StockData, PortfolioHolding } from '@/api/stockApi';
-
-// Collection names
-const USERS_COLLECTION = 'users';
-const PORTFOLIOS_COLLECTION = 'portfolios';
-const WATCHLISTS_COLLECTION = 'watchlists';
+import { auth } from '../config/firebase';
+import { API_BASE_URL, fetchWithAuth } from './apiService';
 
 /**
- * Creates or updates a user profile in Firestore after authentication
+ * User Service
+ * Handles user authentication operations
+ * Note: Data storage (portfolios, watchlists) has been migrated to PostgreSQL
+ * This service now only handles Firebase authentication
+ */
+
+/**
+ * Creates or updates a user profile in the backend after authentication
  */
 export const createOrUpdateUserProfile = async (userData: {
   displayName?: string;
@@ -18,313 +19,96 @@ export const createOrUpdateUserProfile = async (userData: {
   const user = auth.currentUser;
   if (!user) throw new Error('No user is currently signed in');
 
-  // Reference to the user document
-  const userRef = doc(db, USERS_COLLECTION, user.uid);
-  
-  // Check if user document already exists
-  const userDoc = await getDoc(userRef);
-  
-  if (userDoc.exists()) {
-    // Update existing user
-    await updateDoc(userRef, {
-      ...userData,
-      updatedAt: new Date()
+  try {
+    // Call the API to create or update the user profile
+    const response = await fetchWithAuth(`${API_BASE_URL}/user/profile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uid: user.uid,
+        displayName: userData.displayName || user.displayName,
+        email: userData.email || user.email,
+        photoURL: userData.photoURL || user.photoURL
+      }),
     });
-  } else {
-    // Create new user
-    await setDoc(userRef, {
-      uid: user.uid,
-      displayName: userData.displayName || user.displayName,
-      email: userData.email || user.email,
-      photoURL: userData.photoURL || user.photoURL,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    });
-    
-    // Initialize empty portfolio for new user
-    await setDoc(doc(db, PORTFOLIOS_COLLECTION, user.uid), {
-      uid: user.uid,
-      holdings: [],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    });
-    
-    // Initialize empty watchlist for new user
-    await setDoc(doc(db, WATCHLISTS_COLLECTION, user.uid), {
-      uid: user.uid,
-      symbols: [],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Failed to update user profile' }));
+      throw new Error(errorData.detail || 'Failed to update user profile');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error updating user profile:', error);
+    throw error;
   }
-  
-  return getUserProfile();
 };
 
 /**
- * Gets the current user's profile from Firestore
+ * Gets the current user's profile from the backend
  */
 export const getUserProfile = async () => {
   const user = auth.currentUser;
   if (!user) throw new Error('No user is currently signed in');
   
-  const userRef = doc(db, USERS_COLLECTION, user.uid);
-  const userDoc = await getDoc(userRef);
-  
-  if (!userDoc.exists()) {
-    // Create a minimal profile if one doesn't exist
-    return createOrUpdateUserProfile({
-      displayName: user.displayName || '',
-      email: user.email || '',
-      photoURL: user.photoURL || ''
-    });
-  }
-  
-  return userDoc.data();
-};
-
-/**
- * Gets the current user's portfolio from Firestore
- */
-export const getUserPortfolio = async () => {
-  const user = auth.currentUser;
-  if (!user) throw new Error('No user is currently signed in');
-  
-  const portfolioRef = doc(db, PORTFOLIOS_COLLECTION, user.uid);
-  const portfolioDoc = await getDoc(portfolioRef);
-  
-  if (!portfolioDoc.exists()) {
-    // Initialize empty portfolio if one doesn't exist
-    const newPortfolio = {
-      uid: user.uid,
-      holdings: [],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    await setDoc(portfolioRef, newPortfolio);
-    return newPortfolio;
-  }
-  
-  return portfolioDoc.data();
-};
-
-/**
- * Updates a user's portfolio holdings
- */
-export const updateUserPortfolio = async (holdings: PortfolioHolding[]) => {
-  const user = auth.currentUser;
-  if (!user) throw new Error('No user is currently signed in');
-  
-  const portfolioRef = doc(db, PORTFOLIOS_COLLECTION, user.uid);
-  
-  await updateDoc(portfolioRef, {
-    holdings,
-    updatedAt: new Date()
-  });
-  
-  return getUserPortfolio();
-};
-
-/**
- * Adds a stock to the user's portfolio
- */
-export const addStockToPortfolio = async (stock: PortfolioHolding) => {
-  const user = auth.currentUser;
-  if (!user) throw new Error('No user is currently signed in');
-  
-  const portfolioRef = doc(db, PORTFOLIOS_COLLECTION, user.uid);
-  const portfolioDoc = await getDoc(portfolioRef);
-  
-  if (!portfolioDoc.exists()) {
-    throw new Error('Portfolio not found');
-  }
-  
-  const portfolio = portfolioDoc.data();
-  const holdings = portfolio.holdings || [];
-  
-  // Check if stock already exists in portfolio
-  const existingIndex = holdings.findIndex((h: PortfolioHolding) => h.symbol === stock.symbol);
-  
-  if (existingIndex >= 0) {
-    // Update existing stock
-    holdings[existingIndex] = {
-      ...holdings[existingIndex],
-      ...stock,
-      updatedAt: new Date()
-    };
-  } else {
-    // Add new stock with position at the end
-    holdings.push({
-      ...stock,
-      position: holdings.length,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    });
-  }
-  
-  await updateDoc(portfolioRef, {
-    holdings,
-    updatedAt: new Date()
-  });
-  
-  return getUserPortfolio();
-};
-
-/**
- * Removes a stock from the user's portfolio
- */
-export const removeStockFromPortfolio = async (symbol: string) => {
-  const user = auth.currentUser;
-  if (!user) throw new Error('No user is currently signed in');
-  
-  const portfolioRef = doc(db, PORTFOLIOS_COLLECTION, user.uid);
-  const portfolioDoc = await getDoc(portfolioRef);
-  
-  if (!portfolioDoc.exists()) {
-    throw new Error('Portfolio not found');
-  }
-  
-  const portfolio = portfolioDoc.data();
-  let holdings = portfolio.holdings || [];
-  
-  // Remove the stock
-  holdings = holdings.filter((h: PortfolioHolding) => h.symbol !== symbol);
-  
-  // Reorder positions after removal
-  holdings = holdings.map((holding: PortfolioHolding, index: number) => ({
-    ...holding,
-    position: index
-  }));
-  
-  await updateDoc(portfolioRef, {
-    holdings,
-    updatedAt: new Date()
-  });
-  
-  return getUserPortfolio();
-};
-
-/**
- * Reorders the stocks in the user's portfolio
- */
-export const reorderPortfolio = async (orderedSymbols: string[]) => {
-  const user = auth.currentUser;
-  if (!user) throw new Error('No user is currently signed in');
-  
-  const portfolioRef = doc(db, PORTFOLIOS_COLLECTION, user.uid);
-  const portfolioDoc = await getDoc(portfolioRef);
-  
-  if (!portfolioDoc.exists()) {
-    throw new Error('Portfolio not found');
-  }
-  
-  const portfolio = portfolioDoc.data();
-  let holdings = portfolio.holdings || [];
-  
-  // Create a map for easy lookup
-  const holdingsMap = holdings.reduce((map: any, holding: PortfolioHolding) => {
-    map[holding.symbol] = holding;
-    return map;
-  }, {});
-  
-  // Create new ordered array
-  const orderedHoldings = orderedSymbols.map((symbol, index) => {
-    const holding = holdingsMap[symbol];
-    if (!holding) return null;
+  try {
+    const response = await fetchWithAuth(`${API_BASE_URL}/user/profile`);
     
-    return {
-      ...holding,
-      position: index
-    };
-  }).filter(Boolean); // Remove null values
-  
-  await updateDoc(portfolioRef, {
-    holdings: orderedHoldings,
-    updatedAt: new Date()
-  });
-  
-  return getUserPortfolio();
+    if (!response.ok) {
+      // If user profile doesn't exist, create a new one
+      if (response.status === 404) {
+        return createOrUpdateUserProfile({
+          displayName: user.displayName || '',
+          email: user.email || '',
+          photoURL: user.photoURL || ''
+        });
+      }
+      
+      const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch user profile' }));
+      throw new Error(errorData.detail || 'Failed to fetch user profile');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    throw error;
+  }
 };
 
 /**
- * Gets the current user's watchlist from Firestore
+ * Gets the current authenticated user
  */
-export const getUserWatchlist = async () => {
-  const user = auth.currentUser;
-  if (!user) throw new Error('No user is currently signed in');
-  
-  const watchlistRef = doc(db, WATCHLISTS_COLLECTION, user.uid);
-  const watchlistDoc = await getDoc(watchlistRef);
-  
-  if (!watchlistDoc.exists()) {
-    // Initialize empty watchlist if one doesn't exist
-    const newWatchlist = {
-      uid: user.uid,
-      symbols: [],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    await setDoc(watchlistRef, newWatchlist);
-    return newWatchlist;
-  }
-  
-  return watchlistDoc.data();
+export const getCurrentUser = () => {
+  return auth.currentUser;
 };
 
 /**
- * Adds a stock to the user's watchlist
+ * Gets the current user's ID (UID)
  */
-export const addToWatchlist = async (symbol: string) => {
+export const getCurrentUserId = () => {
   const user = auth.currentUser;
-  if (!user) throw new Error('No user is currently signed in');
-  
-  const watchlistRef = doc(db, WATCHLISTS_COLLECTION, user.uid);
-  const watchlistDoc = await getDoc(watchlistRef);
-  
-  if (!watchlistDoc.exists()) {
-    throw new Error('Watchlist not found');
-  }
-  
-  const watchlist = watchlistDoc.data();
-  const symbols = watchlist.symbols || [];
-  
-  // Check if symbol already exists in watchlist
-  if (!symbols.includes(symbol)) {
-    symbols.push(symbol);
-  }
-  
-  await updateDoc(watchlistRef, {
-    symbols,
-    updatedAt: new Date()
-  });
-  
-  return getUserWatchlist();
+  if (!user) return null;
+  return user.uid;
 };
 
 /**
- * Removes a stock from the user's watchlist
+ * Checks if a user is currently authenticated
  */
-export const removeFromWatchlist = async (symbol: string) => {
+export const isAuthenticated = () => {
+  return !!auth.currentUser;
+};
+
+/**
+ * Gets the current user's authentication token
+ */
+export const getUserToken = async () => {
   const user = auth.currentUser;
   if (!user) throw new Error('No user is currently signed in');
   
-  const watchlistRef = doc(db, WATCHLISTS_COLLECTION, user.uid);
-  const watchlistDoc = await getDoc(watchlistRef);
-  
-  if (!watchlistDoc.exists()) {
-    throw new Error('Watchlist not found');
+  try {
+    return await user.getIdToken();
+  } catch (error) {
+    console.error('Error getting user token:', error);
+    throw error;
   }
-  
-  const watchlist = watchlistDoc.data();
-  const symbols = watchlist.symbols || [];
-  
-  // Remove the symbol
-  const newSymbols = symbols.filter((s: string) => s !== symbol);
-  
-  await updateDoc(watchlistRef, {
-    symbols: newSymbols,
-    updatedAt: new Date()
-  });
-  
-  return getUserWatchlist();
 };

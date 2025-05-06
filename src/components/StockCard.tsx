@@ -96,7 +96,7 @@ const StockCard: React.FC<StockCardProps> = ({
               </div>
             </div>
             
-            <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+            <div className="mt-2 grid grid-cols-2 gap-x-16 gap-y-2 text-xs">
               <div>
                 <p className="text-ios-gray">Shares</p>
                 <p>{shares}</p>

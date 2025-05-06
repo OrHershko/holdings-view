@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 
 # Import your models
-from api.stock_api import Base
+from api.models.models import Base
 
 load_dotenv()
 
@@ -18,7 +18,7 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 def get_url():
-    return os.getenv("POSTGRES_URL")
+    return os.getenv("DATABASE_URL")
 
 def run_migrations_offline():
     url = get_url()

@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useMemo, ErrorInfo } from 'rea
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from "@/components/ui/button";
 import { Toggle } from '@/components/ui/toggle';
-import { useStockHistory } from '@/hooks/useStockData';
+import { useStockHistory } from '@/hooks/usePostgresData';
 import PeriodSelector from './charts/PeriodSelector';
 import IntervalSelector from './charts/IntervalSelector';
 import LightweightStockChart from './charts/LightweightStockChart';
@@ -121,20 +121,19 @@ const StockChart: React.FC<StockChartProps> = ({
 }) => {
   const [selectedPeriod, setSelectedPeriod] = useState<string>('1y');
   const [selectedInterval, setSelectedInterval] = useState<string>('1d');
-  const [chartKey, setChartKey] = useState<number>(0); // Add key to force remount
+  const [chartKey, setChartKey] = useState<number>(0); 
   const [showDetailedInfo, setShowDetailedInfo] = useState<boolean>(false);
 
   const { toast } = useToast();
   const isPositive = change >= 0;
 
-  // Indicator visibility controls
   const [indicatorVisibility, setIndicatorVisibility] = useState<Record<string, boolean>>({
-    sma20: false,  // Show all SMA lines by default
+    sma20: false,  
     sma50: false,
     sma100: false,
     sma150: false,
     sma200: false,
-    rsi: false    // RSI off by default as it uses a different scale
+    rsi: false    
   });
 
   const validIntervals = useMemo(() => {
@@ -147,11 +146,10 @@ const StockChart: React.FC<StockChartProps> = ({
     }
   }, [selectedPeriod, selectedInterval, validIntervals]);
 
-  // Use a more efficient caching strategy with explicit options to prevent unnecessary refetching
   const { data, isLoading, error, refetch } = useStockHistory(symbol, selectedPeriod, selectedInterval, {
-    keepPreviousData: true, // Keep showing previous data while loading new data
-    refetchOnWindowFocus: false, // Only refetch when explicitly requested or stale
-    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    keepPreviousData: true, 
+    refetchOnWindowFocus: false, 
+    staleTime: 5 * 60 * 1000, 
   });
 
   useEffect(() => {
@@ -177,18 +175,15 @@ const StockChart: React.FC<StockChartProps> = ({
       description: "There was a problem rendering the stock chart. Please try a different time period.",
       variant: "destructive",
     });
-    // Force a remount of the chart component
     setChartKey(prev => prev + 1);
   }, [toast]);
 
   const chartData = useMemo(() => {
-    // Validate that data exists and has the required dates array
     if (!data || !data.dates || !Array.isArray(data.dates) || data.dates.length === 0) {
       console.warn('Invalid or empty chart data received', data);
       return [];
     }
 
-    // Ensure all arrays are actually arrays before mapping
     const ensureArray = (arr: any): any[] => {
       if (!arr || !Array.isArray(arr)) {
         console.warn('Non-array data found in chart data:', arr);
@@ -197,7 +192,6 @@ const StockChart: React.FC<StockChartProps> = ({
       return arr;
     };
 
-    // Create safe arrays with same length as dates
     const safeVolume = ensureArray(data.volume);
     const safeSma20 = ensureArray(data.sma20);
     const safeSma50 = ensureArray(data.sma50);
@@ -210,19 +204,15 @@ const StockChart: React.FC<StockChartProps> = ({
     const safeOpen = ensureArray(data.open);
     const safeClose = ensureArray(data.close);
 
-    // Create an empty result array
     const result: any[] = [];
 
-    // Map data safely with index checks - handle array length differences
     const maxLength = data.dates.length;
     for (let index = 0; index < maxLength; index++) {
       try {
-        // Ensure we don't go out of bounds on any array
         const safeIndex = (arr: any[], idx: number) => {
           return (arr && Array.isArray(arr) && idx >= 0 && idx < arr.length) ? arr[idx] : null;
         };
 
-        // Use null for NaN values
         const sanitizeValue = (value: any): number | null => {
           if (value === undefined || value === null) return null;
           const num = typeof value === 'number' ? value : Number(value);
@@ -230,7 +220,7 @@ const StockChart: React.FC<StockChartProps> = ({
         };
 
         result.push({
-          date: safeIndex(data.dates, index) || new Date().toISOString(), // Fallback to current date if null
+          date: safeIndex(data.dates, index) || new Date().toISOString(), 
           volume: sanitizeValue(safeIndex(safeVolume, index)) ?? 0,
           sma20: sanitizeValue(safeIndex(safeSma20, index)),
           sma50: sanitizeValue(safeIndex(safeSma50, index)),
@@ -251,13 +241,6 @@ const StockChart: React.FC<StockChartProps> = ({
     return result;
   }, [data]);
 
-  // Debug log outside of JSX
-  useEffect(() => {
-    if (chartData.length > 0) {
-      console.log("StockChart: Prepared chartData:", chartData);
-    }
-  }, [chartData]);
-
   const toggleIndicator = (indicator: string) => {
     setIndicatorVisibility(prev => ({
       ...prev,
@@ -265,7 +248,6 @@ const StockChart: React.FC<StockChartProps> = ({
     }));
   };
 
-  // Function to select all or none of the indicators
   const toggleAllIndicators = (showAll: boolean) => {
     setIndicatorVisibility({
       sma20: showAll,
@@ -335,9 +317,9 @@ const StockChart: React.FC<StockChartProps> = ({
     return (
       <Card className="ios-card w-full max-w-[95vw] mx-auto">
         <CardContent className="p-4">
-          <div className="flex justify-between items-center mb-4">
-            <div className="text-lg font-medium">{stockName} ({symbol})</div>
-            <div className="flex gap-3 items-center">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+            <div className="text-lg font-medium truncate max-w-full sm:max-w-[40%]">{stockName} ({symbol})</div>
+            <div className="flex flex-wrap gap-3 items-center">
               <div className="text-sm text-gray-400">
                 <span className={isPositive ? 'text-green-500' : 'text-red-500'}>
                   {isPositive ? '+' : ''}{change.toFixed(2)} ({changePercent.toFixed(2)}%)
@@ -431,18 +413,27 @@ const StockChart: React.FC<StockChartProps> = ({
   return (
     <Card className="ios-card w-full max-w-[95vw] mx-auto">
       <CardContent className="p-4">
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <h2 className="text-lg font-medium text-white">{symbol}</h2>
-            <p className="text-sm text-gray-400">{stockName}</p>
-            <p className="text-xs text-gray-500">Market Cap: ${marketCap.toLocaleString()}</p>
-            <p className="text-xs text-gray-500">Daily Volume: {volume.toLocaleString()}</p>
-          </div>
-          <div className="text-right">
-            <div className="text-xl font-bold text-white">${currentPrice.toFixed(2)}</div>
-            <div className={isPositive ? 'text-green-400 text-sm' : 'text-red-400 text-sm'}>
-              {isPositive ? '+' : ''}{change.toFixed(2)} ({isPositive ? '+' : ''}{changePercent.toFixed(2)}%)
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+          <div className="text-lg font-medium truncate max-w-full sm:max-w-[40%]">{stockName} ({symbol})</div>
+          <div className="flex flex-wrap gap-3 items-center">
+            <div className="text-sm text-gray-400">
+              <span className={isPositive ? 'text-green-500' : 'text-red-500'}>
+                {isPositive ? '+' : ''}{change.toFixed(2)} ({changePercent.toFixed(2)}%)
+              </span>
             </div>
+            <PeriodSelector
+              periods={AVAILABLE_PERIODS}
+              selectedPeriod={selectedPeriod}
+              isPositive={isPositive}
+              onPeriodChange={handlePeriodChange}
+            />
+            <IntervalSelector
+              intervals={AVAILABLE_INTERVALS}
+              selectedInterval={selectedInterval}
+              validIntervals={validIntervals}
+              isPositive={isPositive}
+              onIntervalChange={handleIntervalChange}
+            />
           </div>
         </div>
         <div className="mb-2">
@@ -588,9 +579,9 @@ const StockChart: React.FC<StockChartProps> = ({
             onClick={() => setShowDetailedInfo(!showDetailedInfo)}
           >
             <InfoIcon className="h-4 w-4 mr-1" />
-              {showDetailedInfo ? 'Hide Details' : 'Show Details'}
-            </Button>
-          </div>
+            {showDetailedInfo ? 'Hide Details' : 'Show Details'}
+          </Button>
+        </div>
         {/* Stock Detailed Information */}
         <StockDetailedInfo 
           symbol={symbol} 

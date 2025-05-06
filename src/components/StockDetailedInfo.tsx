@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useDetailedStockData } from '@/hooks/useDetailedStockData';
-import { useStockHistory } from '@/hooks/useStockData';
 import AIStockAnalysis from './AIStockAnalysis';
 
 interface StockDetailedInfoProps {
@@ -21,18 +20,15 @@ interface StockDetailedInfoProps {
   isOpen: boolean;
 }
 
-// Function to format numbers with commas for thousands
 const formatNumber = (num: number | string | undefined) => {
   if (num === undefined || num === null || num === '') return 'N/A';
   if (typeof num === 'string' && !num.trim()) return 'N/A';
   
   if (typeof num === 'string') {
-    // Try to convert to number
     num = parseFloat(num);
     if (isNaN(num)) return 'N/A';
   }
   
-  // Format large numbers with appropriate suffixes (B for billions, M for millions, etc.)
   if (num >= 1e9) {
     return `$${(num / 1e9).toFixed(2)}B`;
   } else if (num >= 1e6) {
@@ -44,7 +40,6 @@ const formatNumber = (num: number | string | undefined) => {
   }
 };
 
-// Format date from epoch
 const formatDate = (epochTime: number | undefined) => {
   if (!epochTime) return 'N/A';
   return new Date(epochTime * 1000).toLocaleDateString();
@@ -54,12 +49,10 @@ const StockDetailedInfo: React.FC<StockDetailedInfoProps> = ({ symbol, isOpen })
   const [activeTab, setActiveTab] = useState('overview');
   const { toast } = useToast();
   
-  // Use the hook to fetch detailed stock data
   const { data, isLoading, error } = useDetailedStockData(symbol, isOpen);
-  const stockInfo = data?.info || {}; // Provide empty object as fallback
-  const stockHistory = data?.history || null; // Provide null as fallback
+  const stockInfo = data?.info || {};
+  const stockHistory = data?.history || null;
   
-  // Show error toast if fetch fails
   useEffect(() => {
     if (error) {
       console.error('Error fetching stock details:', error);
@@ -71,11 +64,8 @@ const StockDetailedInfo: React.FC<StockDetailedInfoProps> = ({ symbol, isOpen })
     }
   }, [error, toast]);
 
-
-  // Don't render if not open or there's no symbol
   if (!isOpen || !symbol) return null;
 
-  // Handle error states more gracefully
   if (error) {
     return (
       <Card className="w-full mt-4 dark:bg-gray-900/90 backdrop-blur-sm border-gray-600">
@@ -133,12 +123,12 @@ const StockDetailedInfo: React.FC<StockDetailedInfoProps> = ({ symbol, isOpen })
           </div>
         ) : (
           <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid grid-cols-5 mb-4">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="financial">Financial</TabsTrigger>
-              <TabsTrigger value="company">Company</TabsTrigger>
-              <TabsTrigger value="analysis">Analysis</TabsTrigger>
-              <TabsTrigger value="ai-analysis" className="flex items-center">
+            <TabsList className="flex flex-wrap h-auto justify-center mb-4">
+              <TabsTrigger value="overview" className="flex-grow sm:flex-grow-0">Overview</TabsTrigger>
+              <TabsTrigger value="financial" className="flex-grow sm:flex-grow-0">Financial</TabsTrigger>
+              <TabsTrigger value="company" className="flex-grow sm:flex-grow-0">Company</TabsTrigger>
+              <TabsTrigger value="analysis" className="flex-grow sm:flex-grow-0">Analysis</TabsTrigger>
+              <TabsTrigger value="ai-analysis" className="flex items-center flex-grow sm:flex-grow-0">
                 <BrainCircuitIcon className="h-4 w-4 mr-1" />
                 AI Analysis
               </TabsTrigger>
@@ -168,6 +158,10 @@ const StockDetailedInfo: React.FC<StockDetailedInfoProps> = ({ symbol, isOpen })
                         <span className="font-medium">{stockInfo?.symbol || 'N/A'}</span>
                       </li>
                       <li className="flex justify-between">
+                        <span className="text-gray-500">Full Name:</span>
+                        <span className="font-medium">{stockInfo?.longName || stockInfo?.shortName || 'N/A'}</span>
+                      </li>
+                      <li className="flex justify-between">
                         <span className="text-gray-500">Currency:</span>
                         <span className="font-medium">{stockInfo?.currency || 'N/A'}</span>
                       </li>
@@ -177,11 +171,11 @@ const StockDetailedInfo: React.FC<StockDetailedInfoProps> = ({ symbol, isOpen })
                       </li>
                       <li className="flex justify-between">
                         <span className="text-gray-500">Exchange:</span>
-                        <span className="font-medium">{stockInfo?.exchange || 'N/A'}</span>
+                        <span className="font-medium">{stockInfo?.fullExchangeName || stockInfo?.exchange || 'N/A'}</span>
                       </li>
                       <li className="flex justify-between">
                         <span className="text-gray-500">Quote Type:</span>
-                        <span className="font-medium">{stockInfo?.quoteType || 'N/A'}</span>
+                        <span className="font-medium">{stockInfo?.typeDisp || stockInfo?.quoteType || 'N/A'}</span>
                       </li>
                     </ul>
                   </div>
@@ -224,18 +218,169 @@ const StockDetailedInfo: React.FC<StockDetailedInfoProps> = ({ symbol, isOpen })
               <TabsContent value="financial" className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <h3 className="text-lg font-semibold flex items-center">
-                      <DollarSignIcon className="mr-2 h-5 w-5" />
-                      Valuation
-                    </h3>
+                    <h3 className="text-lg font-semibold">Market Data</h3>
                     <ul className="space-y-2 mt-2">
                       <li className="flex justify-between">
                         <span className="text-gray-500">Market Cap:</span>
                         <span className="font-medium">{formatNumber(stockInfo?.marketCap)}</span>
                       </li>
                       <li className="flex justify-between">
+                        <span className="text-gray-500">Volume:</span>
+                        <span className="font-medium">{stockInfo?.volume?.toLocaleString() || stockInfo?.regularMarketVolume?.toLocaleString() || 'N/A'}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Avg Volume:</span>
+                        <span className="font-medium">{stockInfo?.averageVolume?.toLocaleString() || 'N/A'}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Avg Volume (10 days):</span>
+                        <span className="font-medium">{stockInfo?.averageVolume10days?.toLocaleString() || 'N/A'}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Beta:</span>
+                        <span className="font-medium">{stockInfo?.beta?.toFixed(2) || 'N/A'}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">52-Week High:</span>
+                        <span className="font-medium">${stockInfo?.fiftyTwoWeekHigh?.toFixed(2) || 'N/A'}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">52-Week Low:</span>
+                        <span className="font-medium">${stockInfo?.fiftyTwoWeekLow?.toFixed(2) || 'N/A'}</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-semibold">Short Interest</h3>
+                    <ul className="space-y-2 mt-2">
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Short % of Float:</span>
+                        <span className="font-medium">
+                          {stockInfo?.shortPercentOfFloat 
+                            ? (stockInfo.shortPercentOfFloat * 100).toFixed(2) + '%' 
+                            : 'N/A'}
+                        </span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Shares Short:</span>
+                        <span className="font-medium">{stockInfo?.sharesShort?.toLocaleString() || 'N/A'}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Short Ratio:</span>
+                        <span className="font-medium">{stockInfo?.shortRatio?.toFixed(2) || 'N/A'}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Date of Short Interest:</span>
+                        <span className="font-medium">{formatDate(stockInfo?.dateShortInterest) || 'N/A'}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Short % of Shares Outstanding:</span>
+                        <span className="font-medium">
+                          {stockInfo?.sharesPercentSharesOut 
+                            ? (stockInfo.sharesPercentSharesOut * 100).toFixed(2) + '%' 
+                            : 'N/A'}
+                        </span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Short Previous Month:</span>
+                        <span className="font-medium">{stockInfo?.sharesShortPreviousMonthDate 
+                          ? formatDate(stockInfo.sharesShortPreviousMonthDate) + ': ' + 
+                            (stockInfo.sharesShortPriorMonth?.toLocaleString() || 'N/A')
+                          : 'N/A'}</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+                <Separator className="my-4" />
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-lg font-semibold">Share Statistics</h3>
+                    <ul className="space-y-2 mt-2">
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Shares Outstanding:</span>
+                        <span className="font-medium">{stockInfo?.sharesOutstanding?.toLocaleString() || 'N/A'}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Float Shares:</span>
+                        <span className="font-medium">{stockInfo?.floatShares?.toLocaleString() || 'N/A'}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Implied Shares Outstanding:</span>
+                        <span className="font-medium">{stockInfo?.impliedSharesOutstanding?.toLocaleString() || 'N/A'}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">% Held by Insiders:</span>
+                        <span className="font-medium">
+                          {stockInfo?.heldPercentInsiders 
+                            ? (stockInfo.heldPercentInsiders * 100).toFixed(2) + '%' 
+                            : 'N/A'}
+                        </span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">% Held by Institutions:</span>
+                        <span className="font-medium">
+                          {stockInfo?.heldPercentInstitutions 
+                            ? (stockInfo.heldPercentInstitutions * 100).toFixed(2) + '%' 
+                            : 'N/A'}
+                        </span>
+                      </li>
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-lg font-semibold">Balance Sheet Metrics</h3>
+                    <ul className="space-y-2 mt-2">
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Total Cash:</span>
+                        <span className="font-medium">{formatNumber(stockInfo?.totalCash)}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Cash Per Share:</span>
+                        <span className="font-medium">${stockInfo?.totalCashPerShare?.toFixed(2) || 'N/A'}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Total Debt:</span>
+                        <span className="font-medium">{formatNumber(stockInfo?.totalDebt)}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Debt to Equity:</span>
+                        <span className="font-medium">{stockInfo?.debtToEquity?.toFixed(2) || 'N/A'}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Current Ratio:</span>
+                        <span className="font-medium">{stockInfo?.currentRatio?.toFixed(2) || 'N/A'}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Quick Ratio:</span>
+                        <span className="font-medium">{stockInfo?.quickRatio?.toFixed(2) || 'N/A'}</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+                <Separator className="my-4" />
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-lg font-semibold flex items-center">
+                      <DollarSignIcon className="mr-2 h-5 w-5" />
+                      Valuation
+                    </h3>
+                    <ul className="space-y-2 mt-2">
+                      <li className="flex justify-between">
                         <span className="text-gray-500">Enterprise Value:</span>
                         <span className="font-medium">{formatNumber(stockInfo?.enterpriseValue)}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Enterprise/Revenue:</span>
+                        <span className="font-medium">{stockInfo?.enterpriseToRevenue?.toFixed(2) || 'N/A'}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Enterprise/EBITDA:</span>
+                        <span className="font-medium">{stockInfo?.enterpriseToEbitda?.toFixed(2) || 'N/A'}</span>
                       </li>
                       <li className="flex justify-between">
                         <span className="text-gray-500">Trailing P/E:</span>
@@ -248,6 +393,10 @@ const StockDetailedInfo: React.FC<StockDetailedInfoProps> = ({ symbol, isOpen })
                       <li className="flex justify-between">
                         <span className="text-gray-500">Price/Book:</span>
                         <span className="font-medium">{stockInfo?.priceToBook?.toFixed(2) || 'N/A'}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Price/Sales:</span>
+                        <span className="font-medium">{stockInfo?.priceToSalesTrailing12Months?.toFixed(2) || 'N/A'}</span>
                       </li>
                     </ul>
                   </div>
@@ -442,17 +591,20 @@ const StockDetailedInfo: React.FC<StockDetailedInfoProps> = ({ symbol, isOpen })
                       <li className="flex justify-between">
                         <span className="text-gray-500">Recommendation:</span>
                         <Badge 
-                          variant="outline" 
                           className={`
                             ${stockInfo?.recommendationKey === 'buy' || stockInfo?.recommendationKey === 'strong_buy' 
-                              ? 'border-green-500 text-green-500' 
+                              ? 'bg-green-600 hover:bg-green-700' 
                               : stockInfo?.recommendationKey === 'hold' 
-                              ? 'border-yellow-500 text-yellow-500' 
-                              : 'border-red-500 text-red-500'}
+                              ? 'bg-yellow-600 hover:bg-yellow-700' 
+                              : 'bg-red-600 hover:bg-red-700'}
                           `}
                         >
                           {stockInfo?.recommendationKey?.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'N/A'}
                         </Badge>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Consensus Rating:</span>
+                        <span className="font-medium">{stockInfo?.averageAnalystRating || 'N/A'}</span>
                       </li>
                       <li className="flex justify-between">
                         <span className="text-gray-500">Mean Recommendation:</span>
@@ -467,12 +619,24 @@ const StockDetailedInfo: React.FC<StockDetailedInfoProps> = ({ symbol, isOpen })
                         <span className="font-medium">${stockInfo?.targetMeanPrice?.toFixed(2) || 'N/A'}</span>
                       </li>
                       <li className="flex justify-between">
+                        <span className="text-gray-500">Target Median Price:</span>
+                        <span className="font-medium">${stockInfo?.targetMedianPrice?.toFixed(2) || 'N/A'}</span>
+                      </li>
+                      <li className="flex justify-between">
                         <span className="text-gray-500">Target High Price:</span>
                         <span className="font-medium">${stockInfo?.targetHighPrice?.toFixed(2) || 'N/A'}</span>
                       </li>
                       <li className="flex justify-between">
                         <span className="text-gray-500">Target Low Price:</span>
                         <span className="font-medium">${stockInfo?.targetLowPrice?.toFixed(2) || 'N/A'}</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-500">Upside Potential:</span>
+                        <span className="font-medium">
+                          {stockInfo?.targetMeanPrice && stockInfo?.currentPrice 
+                            ? ((stockInfo.targetMeanPrice / stockInfo.currentPrice - 1) * 100).toFixed(2) + '%' 
+                            : 'N/A'}
+                        </span>
                       </li>
                     </ul>
                   </div>

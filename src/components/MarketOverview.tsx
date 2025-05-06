@@ -3,6 +3,7 @@ import { ArrowUpRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button'; // Assuming you have a Button component
 import { fetchNews as fetchNewsService } from '@/services/stockService';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
 interface NewsArticle {
   title: string;
@@ -25,6 +26,20 @@ const MarketOverview: React.FC<MarketOverviewProps> = ({ portfolio }) => {
 
   // Use a ref to track current portfolio symbols for comparison
   const prevPortfolioRef = React.useRef<string[]>([]);
+  const auth = getAuth();
+  
+  // Listen for auth state changes - clear news when user changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      // Reset news and force refetch when user changes
+      setNews({});
+      setAllNews([]);
+      setLoading(true);
+      // Portfolio will change which will trigger news fetch
+    });
+    
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     // Don't refetch if only the order changed
@@ -99,7 +114,11 @@ const MarketOverview: React.FC<MarketOverviewProps> = ({ portfolio }) => {
     return (
       <Card className="ios-card">
         <CardContent className="p-4">
-          <h2 className="text-lg font-medium">Loading News...</h2>
+          <h2 className="text-lg font-medium">
+            {portfolio.length === 0 
+              ? "Add stocks to your portfolio to see news" 
+              : "Loading News..."}
+          </h2>
         </CardContent>
       </Card>
     );
