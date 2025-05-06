@@ -31,13 +31,6 @@ const App = () => (
             
             {/* Main page - accessible to guests and authenticated users */}
             <Route path="/" element={<Index />} />
-
-            {/* Protected routes can be nested here if needed, or defined individually */}
-            {/* Example of how other routes could still be protected: 
-            <Route element={<ProtectedRoute />}>
-              <Route path="/dashboard" element={<Dashboard />} /> 
-            </Route>
-            */}
             
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />

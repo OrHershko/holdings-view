@@ -112,7 +112,7 @@ const MarketOverview: React.FC<MarketOverviewProps> = ({ portfolio }) => {
 
   if (loading) {
     return (
-      <Card className="ios-card">
+      <Card className="ios-card min-w-[320px]">
         <CardContent className="p-4">
           <h2 className="text-lg font-medium">
             {portfolio.length === 0 
@@ -125,7 +125,7 @@ const MarketOverview: React.FC<MarketOverviewProps> = ({ portfolio }) => {
   }
 
   return (
-    <Card className="ios-card">
+    <Card className="ios-card min-w-[320px]">
       <CardContent className="p-4">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-medium">Portfolio News</h2>

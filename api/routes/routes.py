@@ -22,7 +22,6 @@ router = APIRouter()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Diagnostic endpoint for debugging auth issues
 @router.get("/auth-debug")
 async def auth_debug(request: Request):
     """Diagnostic endpoint to check authentication token without the full auth flow"""
@@ -69,7 +68,7 @@ def get_portfolio(user_id: str = Depends(get_current_user), db: Session = Depend
 
     for holding in db_holdings:
         try:
-            stock_data = get_stock_info(holding.symbol) # Fetch live data
+            stock_data = get_stock_info(holding.symbol) 
             current_price = stock_data["price"]
             change = stock_data["change"]
             shares = holding.shares
@@ -81,7 +80,6 @@ def get_portfolio(user_id: str = Depends(get_current_user), db: Session = Depend
             day_change_value = change * shares
             start_value = value - day_change_value
 
-            # Log the raw stock data for debugging
             logger.debug("Raw stock data for %s:", holding.symbol)
             logger.debug("  pre_market_price = %s", stock_data.get('preMarketPrice'))
             logger.debug("  post_market_price = %s", stock_data.get('postMarketPrice'))
@@ -104,7 +102,6 @@ def get_portfolio(user_id: str = Depends(get_current_user), db: Session = Depend
                 "marketState": stock_data["marketState"]
             }
             
-            # Log the holding we're adding to the portfolio
             logger.debug("Updated holding for %s:", holding.symbol)
             logger.debug("  preMarketPrice = %s", updated_holding['preMarketPrice'])
             logger.debug("  postMarketPrice = %s", updated_holding['postMarketPrice'])
@@ -128,14 +125,12 @@ def get_portfolio(user_id: str = Depends(get_current_user), db: Session = Depend
                 "marketState": None
             })
 
-    # Calculate portfolio summary
     total_value = sum(h.get("value", 0) for h in updated_portfolio if h.get("value") is not None)
     total_cost_basis = sum(h.shares * h.averageCost for h in db_holdings)
     total_gain = total_value - total_cost_basis
     total_gain_percent = (total_gain / total_cost_basis) * 100 if total_cost_basis > 0 else 0
     day_change_percent = (total_day_change_value / total_start_value) * 100 if total_start_value > 0 else 0
 
-    # Log the final response for debugging
     if updated_portfolio:
         logger.debug("First holding in final response:")
         logger.debug("  Symbol: %s", updated_portfolio[0]['symbol'])
@@ -159,7 +154,6 @@ def get_portfolio(user_id: str = Depends(get_current_user), db: Session = Depend
 
 @router.post("/api/portfolio/add")
 def add_to_portfolio(holding_data: HoldingCreate, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    # Check if holding exists on Yahoo Finance
     try:
         stock_info = get_stock_info(holding_data.symbol)
         if not stock_info or stock_info.get("price") is None:
@@ -179,7 +173,7 @@ def add_to_portfolio(holding_data: HoldingCreate, user_id: str = Depends(get_cur
         db.add(new_holding)
         db.commit()
         db.refresh(new_holding)
-        return new_holding # Return the created object
+        return new_holding 
     except SQLAlchemyError as e:
         db.rollback()
         logger.error("Database error adding holding: %s", e)
@@ -243,7 +237,6 @@ def upload_portfolio(holdings: List[HoldingCreate], user_id: str = Depends(get_c
         logger.warning("No holdings received for upload.")
         raise HTTPException(status_code=400, detail="No valid holdings data received.")
 
-    # Check if all symbols exist on Yahoo Finance
     try:
         symbols_in_upload = {h.symbol for h in holdings}
         invalid_symbols = [symbol for symbol in symbols_in_upload if not get_stock_info(symbol)]
@@ -262,11 +255,9 @@ def upload_portfolio(holdings: List[HoldingCreate], user_id: str = Depends(get_c
         num_deleted = db.query(HoldingDB).filter(HoldingDB.user_id == user_id).delete()
         logger.info("Deleted %d existing holdings before upload.", num_deleted)
 
-        # הדפסת כל ההחזקות שמועלות
         for i, h in enumerate(holdings):
             logger.debug("Preparing holding #%d: %s", i, h.model_dump())
 
-        # הוספה
         new_db_holdings = [
             HoldingDB(**h.model_dump(), position=i, user_id=user_id)
             for i, h in enumerate(holdings)
@@ -322,7 +313,6 @@ def get_watchlist_details(user_id: str = Depends(get_current_user), db: Session 
 def get_stock_data(symbol: str):
     try:
         stock_data = get_stock_info(symbol)
-        # Check if symbol exists on Yahoo Finance
         if not stock_data or stock_data.get("price") is None:
             raise HTTPException(status_code=400, detail="Invalid symbol: not found on market")
         return StockResponse(
@@ -363,12 +353,10 @@ def get_detailed_stock_data(symbol: str):
         if not info:
             raise HTTPException(status_code=404, detail=f"No detailed information available for {symbol}")
         
-        # Convert None values to empty strings for serialization
         for key in info:
             if info[key] is None:
                 info[key] = ""
 
-        # Get History 1 month period 1d interval
         history = ticker.history(period="1mo", interval="1d")
         history = history.reset_index() 
         history_records = history.to_dict(orient="records")
@@ -401,7 +389,6 @@ def get_stock_history(symbol: str, period: str = Query("1d", enum=["1d", "5d", "
 def get_stock_news(symbol: str):
     try:
         stock = yf.Ticker(symbol)
-        # Wrap the news access in a try block since it's where the JSONDecodeError happens
         try:
             news = stock.news
         except Exception as news_error:
@@ -415,42 +402,35 @@ def get_stock_news(symbol: str):
         articles = []
         for item in news:
             try:
-                content = item.get("content") # Get the nested content dictionary
+                content = item.get("content") 
                 if not content:
                     logger.warning(f"News item for {symbol} missing 'content' dictionary: {item}")
-                    continue # Skip this item if content is missing
+                    continue 
 
-                # Extract data from the 'content' dictionary
                 title = content.get("title")
                 
-                # Get the link - check canonicalUrl first, then clickThroughUrl
                 link_obj = content.get("canonicalUrl") or content.get("clickThroughUrl")
                 link = link_obj.get("url") if link_obj else None
 
-                # Get the source from the provider dictionary
                 provider = content.get("provider")
                 source = provider.get("displayName") if provider else None
                 
-                # Get the published date (already a string)
                 publish_time_str = content.get("pubDate") 
 
                 published_iso = None
                 if publish_time_str:
                     try:
-                        # Parse the existing date string
                         try:
-                            # Try ISO 8601 format first
                             ts = datetime.strptime(publish_time_str, "%Y-%m-%dT%H:%M:%SZ")
                             published_iso = ts.isoformat()
                         except ValueError:
                             try:
-                                # Try RFC 2822/822 format (e.g., 'Mon, 02 Jan 2006 15:04:05 GMT')
                                 ts = datetime.strptime(publish_time_str, "%a, %d %b %Y %H:%M:%S %Z")
                                 published_iso = ts.isoformat()
                             except Exception:
                                 logger.warning(f"Could not parse pubDate string '{publish_time_str}' for {symbol} news item.")
                                 published_iso = None
-                    except Exception as dt_error: # Catch broader errors during parsing
+                    except Exception as dt_error: 
                         logger.warning(f"Error parsing pubDate string '{publish_time_str}' for {symbol}: {dt_error}")
 
                 articles.append({
@@ -461,12 +441,10 @@ def get_stock_news(symbol: str):
                 })
             except Exception as item_error:
                 logger.warning(f"Error processing news item for {symbol}: {item_error}")
-                # Continue processing other items
         
         return articles
     except Exception as e:
         logger.exception(f"Error fetching news for {symbol}: {e}")
-        # Return empty list instead of raising an exception
         return []
 
 @router.get("/api/search")
@@ -486,7 +464,6 @@ def add_to_watchlist(symbol: str, user_id: str = Depends(get_current_user), db: 
         raise HTTPException(status_code=400, detail="Invalid symbol format")
     symbol_upper = symbol.upper()
 
-    # Check if symbol exists on Yahoo Finance
     try:
         stock_info = get_stock_info(symbol_upper)
         if not stock_info or stock_info.get("price") is None:
@@ -520,7 +497,6 @@ def remove_from_watchlist(symbol: str, user_id: str = Depends(get_current_user),
     try:
         db.delete(db_symbol)
         db.commit()
-        # Reorder remaining symbols after deleting
         watchlist_items = db.query(WatchlistDB).filter(WatchlistDB.user_id == user_id).order_by(WatchlistDB.position).all()
         for i, item in enumerate(watchlist_items):
             item.position = i
@@ -540,18 +516,14 @@ class WatchlistReorderRequest(BaseModel):
 def reorder_watchlist(request: WatchlistReorderRequest, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     """Reorder symbols in user's watchlist"""
     try:
-        # Get the current watchlist items for the user
         current_watchlist = db.query(WatchlistDB).filter(WatchlistDB.user_id == user_id).all()
         
-        # Create a set of current symbols for efficient lookup
         current_symbols = {item.symbol for item in current_watchlist}
         
-        # Validate that all symbols in the request exist in the watchlist
         for symbol in request.symbols:
             if symbol not in current_symbols:
                 raise HTTPException(status_code=400, detail=f"Symbol {symbol} not found in your watchlist")
         
-        # Validate that all symbols from the watchlist are in the request
         if len(current_symbols) != len(request.symbols):
             missing_symbols = current_symbols - set(request.symbols)
             raise HTTPException(
@@ -559,7 +531,6 @@ def reorder_watchlist(request: WatchlistReorderRequest, user_id: str = Depends(g
                 detail=f"Reorder request is missing {len(missing_symbols)} symbols from your watchlist: {', '.join(missing_symbols)}"
             )
         
-        # Update the positions based on the new order
         for position, symbol in enumerate(request.symbols):
             db.query(WatchlistDB).filter(
                 WatchlistDB.user_id == user_id, 
@@ -568,7 +539,6 @@ def reorder_watchlist(request: WatchlistReorderRequest, user_id: str = Depends(g
         
         db.commit()
         
-        # Return the updated watchlist
         watchlist_items = db.query(WatchlistDB).filter(
             WatchlistDB.user_id == user_id
         ).order_by(WatchlistDB.position).all()
@@ -576,7 +546,6 @@ def reorder_watchlist(request: WatchlistReorderRequest, user_id: str = Depends(g
         result = []
         for item in watchlist_items:
             try:
-                # Get latest stock info to return
                 stock_info = get_stock_info(item.symbol)
                 result.append({
                     "symbol": item.symbol,
@@ -587,7 +556,6 @@ def reorder_watchlist(request: WatchlistReorderRequest, user_id: str = Depends(g
                     "marketCap": stock_info.get("marketCap"),
                 })
             except Exception as e:
-                # If we can't get stock info, just return the symbol
                 logger.warning(f"Error getting stock info for {item.symbol}: {e}")
                 result.append({"symbol": item.symbol, "name": item.symbol})
         
@@ -606,10 +574,8 @@ def get_history(
 ):
     """Get historical price data for a stock"""
     try:
-        # Log request information
         logger.info("History request for %s with period=%s, interval=%s", symbol, period, interval)
         
-        # Map intervals to their maximum allowed periods
         max_periods = {
             "1m": "7d",   # 1-minute data: max 7 days
             "2m": "60d",  # 2-minute data: max 60 days
@@ -626,20 +592,16 @@ def get_history(
             "3mo": "max"   # quarterly data: max available
         }
         
-        # Check if period adjustment is needed
         original_period = period
         period_adjusted = False
         
-        # Get the max allowed period for this interval
         if interval in max_periods and max_periods[interval] != "max":
-            # These period strings from Yahoo Finance
             period_values = {
                 "1d": 1, "5d": 5, "7d": 7, "60d": 60, "90d": 90,
                 "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, 
                 "5y": 1825, "10y": 3650, "ytd": None, "max": None
             }
             
-            # Try to get numeric values for comparison
             requested_days = None
             if period in period_values:
                 requested_days = period_values[period]
@@ -659,58 +621,45 @@ def get_history(
                 except ValueError:
                     pass
             
-            # If we can compare numerically, adjust if needed
             if requested_days is not None and max_allowed_days is not None:
                 if requested_days > max_allowed_days:
                     period = max_period
                     period_adjusted = True
                     logger.info("Adjusted period from %s to %s for %s interval", original_period, period, interval)
-            # Otherwise use string matching for safety
             elif period not in ["1d", "5d", "7d", "60d"] and interval in ["1m", "2m", "5m", "15m", "30m", "90m"]:
                 period = max_period
                 period_adjusted = True
                 logger.info("Adjusted period from %s to %s for %s interval", original_period, period, interval)
         
-        # Fetch data from yfinance with potentially adjusted period
         stock = yf.Ticker(symbol)
         hist = stock.history(period=period, interval=interval)
 
-        # Log response shape
         logger.info("History response for %s: %d rows, columns: %s", symbol, len(hist), list(hist.columns))
 
         if hist.empty:
             logger.warning("Empty history data for %s", symbol)
             raise HTTPException(status_code=404, detail=f"No historical data found for {symbol}")
             
-        # Convert the DataFrame to a list of records - lightweight version
-        # First get the DataFrame as a dict
         data_dict = {
             col: hist[col].tolist() for col in hist.columns
         }
-        # Add the index as a column (replaces reset_index)
         data_dict['Datetime'] = hist.index.tolist()
         
-        # Create records manually (replaces to_dict('records'))
         hist_dict = []
         for i in range(len(data_dict['Datetime'])):
             record = {}
-            # Add index
             record['Datetime'] = data_dict['Datetime'][i]
-            # Add all other columns
             for col in hist.columns:
                 record[col] = data_dict[col][i]
             hist_dict.append(record)
         
-        # Convert all dates to string format for JSON serialization
         for item in hist_dict:
             if 'Date' in item and item['Date'] is not None:
                 item['date'] = item['Date'].strftime('%Y-%m-%d')
                 
-            # If there's a datetime index with time, format it with time
             if 'Datetime' in item and item['Datetime'] is not None:
                 item['date'] = item['Datetime'].strftime('%Y-%m-%d %H:%M:%S')
         
-        # Calculate SMAs if requested
         sma_data = None
         calculate_sma_param = request.query_params.get('calculate_sma')
         if calculate_sma_param and calculate_sma_param.lower() == 'true':
@@ -725,26 +674,22 @@ def get_history(
             "interval": interval
         }
         
-        # Add period adjustment info to response if applicable
         if period_adjusted:
             response_data["adjusted"] = True
             response_data["requestedPeriod"] = original_period
             response_data["actualPeriod"] = period
             response_data["message"] = "Adjusted period from {} to {} due to {} interval limitations".format(original_period, period, interval)
             
-        # Add SMA data if calculated
         if sma_data:
             response_data["sma"] = sma_data
         
         return response_data
     except HTTPException:
-        # Re-raise HTTP exceptions
         raise
     except Exception as e:
         error_msg = str(e)
         logger.exception("Error fetching history for %s: %s", symbol, error_msg)
         
-        # Detect specific Yahoo Finance error about data unavailability
         if "data not available for startTime" in error_msg and "The requested range must be within" in error_msg:
             timeframe_match = re.search(r"must be within the last (\d+) days", error_msg)
             if timeframe_match:
@@ -783,7 +728,3 @@ async def stock_analysis_proxy(request: Request):
     except Exception as e:
         logger.exception("Error forwarding stock analysis request: %s", str(e))
         raise HTTPException(status_code=500, detail="Error forwarding stock analysis request.")
-
-@router.get("/api/ping")
-async def ping():
-    return {"message": "Pong!"}

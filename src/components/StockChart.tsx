@@ -411,30 +411,10 @@ const StockChart: React.FC<StockChartProps> = ({
   }
 
   return (
-    <Card className="ios-card w-full max-w-[95vw] mx-auto">
+    <Card className="ios-card w-full max-w-[95vw] mx-auto min-w-[380px]">
       <CardContent className="p-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
           <div className="text-lg font-medium truncate max-w-full sm:max-w-[40%]">{stockName} ({symbol})</div>
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="text-sm text-gray-400">
-              <span className={isPositive ? 'text-green-500' : 'text-red-500'}>
-                {isPositive ? '+' : ''}{change.toFixed(2)} ({changePercent.toFixed(2)}%)
-              </span>
-            </div>
-            <PeriodSelector
-              periods={AVAILABLE_PERIODS}
-              selectedPeriod={selectedPeriod}
-              isPositive={isPositive}
-              onPeriodChange={handlePeriodChange}
-            />
-            <IntervalSelector
-              intervals={AVAILABLE_INTERVALS}
-              selectedInterval={selectedInterval}
-              validIntervals={validIntervals}
-              isPositive={isPositive}
-              onIntervalChange={handleIntervalChange}
-            />
-          </div>
         </div>
         <div className="mb-2">
           {/* Indicator toggle menu - more prominent */}

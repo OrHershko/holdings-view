@@ -70,12 +70,12 @@ const StockCard: React.FC<StockCardProps> = ({
   };
   
   return (
-    <div ref={setNodeRef} style={style}>
-      <Card className="ios-card hover:shadow-md transition-shadow duration-200 flex items-stretch">
+    <div ref={setNodeRef} style={style} className="min-w-[320px]">
+      <Card className="ios-card hover:shadow-md transition-shadow duration-200 flex flex-row items-stretch">
         <div 
           {...attributes} 
           {...listeners} 
-          className="p-2 flex items-center justify-center cursor-grab text-ios-gray hover:bg-gray-700/50 rounded-l-lg"
+          className="p-2 flex items-center justify-center cursor-grab text-ios-gray hover:bg-gray-700/50 rounded-l-lg rounded-r-none border-b-0 border-r border-gray-200 dark:border-gray-700 touch-action-none"
         >
           <GripVertical className="h-5 w-5" />
         </div>
@@ -96,7 +96,7 @@ const StockCard: React.FC<StockCardProps> = ({
               </div>
             </div>
             
-            <div className="mt-2 grid grid-cols-2 gap-x-16 gap-y-2 text-xs">
+            <div className="mt-2 grid grid-cols-1 xs:grid-cols-2 gap-x-4 sm:gap-x-8 md:gap-x-12 gap-y-2 text-xs">
               <div>
                 <p className="text-ios-gray">Shares</p>
                 <p>{shares}</p>
@@ -119,65 +119,68 @@ const StockCard: React.FC<StockCardProps> = ({
           </CardContent>
         </button>
 
-        {/* Price information - positioned above Edit button with vertical stacking */}
-        <div className="px-3 pt-2 pb-3">
-          {/* Current price section */}
-          <div className="flex justify-end mb-3">
-            <div className="text-right">
-              <p className="text-xs text-ios-gray font-medium">Current Price</p>
-              <p className="font-medium">${typeof currentPrice === 'number' ? currentPrice.toFixed(2) : '--'}</p>
-              <div className={`flex items-center justify-end text-xs ${isPositiveChange ? 'text-ios-green' : 'text-ios-red'}`}>
-                {isPositiveChange ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
-                <span>{isPositiveChange ? '+' : ''}{typeof change === 'number' ? change.toFixed(2) : '--'} ({typeof changePercent === 'number' ? changePercent.toFixed(2) : '--'}%)</span>
+        {/* Container for Price information and Edit Button */}
+        <div className="flex flex-col justify-between px-3 pt-3 pb-3 border-t-0 border-l border-gray-200 dark:border-gray-700 w-auto max-w-xs">
+          {/* Price information section */}
+          <div>
+            <div className="flex justify-end mb-3">
+              <div className="text-right">
+                <p className="text-xs text-ios-gray font-medium">Current Price</p>
+                <p className="font-medium">${typeof currentPrice === 'number' ? currentPrice.toFixed(2) : '--'}</p>
+                <div className={`flex items-center justify-end text-xs ${isPositiveChange ? 'text-ios-green' : 'text-ios-red'}`}>
+                  {isPositiveChange ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
+                  <span>{isPositiveChange ? '+' : ''}{typeof change === 'number' ? change.toFixed(2) : '--'} ({typeof changePercent === 'number' ? changePercent.toFixed(2) : '--'}%)</span>
+                </div>
               </div>
             </div>
+            
+            {/* Pre/Post market section - only show if applicable */}
+            {((marketState === 'PRE' && preMarketPrice > 0) || (marketState === 'POST' && postMarketPrice > 0)) && (
+              <div className="flex justify-end mt-3 border-t border-gray-200 dark:border-gray-700 pt-3">
+                {marketState === 'PRE' && preMarketPrice > 0 && (
+                  <div className="text-right">
+                    <p className="text-xs text-ios-gray font-medium">Pre-Market</p>
+                    <p className="font-medium">${typeof preMarketPrice === 'number' ? preMarketPrice.toFixed(2) : '--'}</p>
+                    <div className={`flex items-center justify-end text-xs ${preMarketPrice > currentPrice ? 'text-ios-green' : 'text-ios-red'}`}>
+                      {preMarketPrice > currentPrice ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
+                      <span>
+                        {preMarketPrice > currentPrice ? '+' : ''}
+                        {(preMarketPrice - currentPrice).toFixed(2)} 
+                        ({((preMarketPrice / currentPrice - 1) * 100).toFixed(2)}%)
+                      </span>
+                    </div>
+                  </div>
+                )}
+                
+                {marketState === 'POST' && postMarketPrice > 0 && (
+                  <div className="text-right">
+                    <p className="text-xs text-ios-gray font-medium">After Hours</p>
+                    <p className="font-medium">${typeof postMarketPrice === 'number' ? postMarketPrice.toFixed(2) : '--'}</p>
+                    <div className={`flex items-center justify-end text-xs ${postMarketPrice > currentPrice ? 'text-ios-green' : 'text-ios-red'}`}>
+                      {postMarketPrice > currentPrice ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
+                      <span>
+                        {postMarketPrice > currentPrice ? '+' : ''}
+                        {(postMarketPrice - currentPrice).toFixed(2)} 
+                        ({((postMarketPrice / currentPrice - 1) * 100).toFixed(2)}%)
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          
-          {/* Pre/Post market section - only show if applicable */}
-          {(marketState === 'PRE' && preMarketPrice > 0) || (marketState === 'POST' && postMarketPrice > 0) ? (
-            <div className="flex justify-end mt-3 border-t border-gray-200 pt-3">
-              {marketState === 'PRE' && preMarketPrice > 0 && (
-                <div className="text-right">
-                  <p className="text-xs text-ios-gray font-medium">Pre-Market</p>
-                  <p className="font-medium">${typeof preMarketPrice === 'number' ? preMarketPrice.toFixed(2) : '--'}</p>
-                  <div className={`flex items-center justify-end text-xs ${preMarketPrice > currentPrice ? 'text-ios-green' : 'text-ios-red'}`}>
-                    {preMarketPrice > currentPrice ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
-                    <span>
-                      {preMarketPrice > currentPrice ? '+' : ''}
-                      {(preMarketPrice - currentPrice).toFixed(2)} 
-                      ({((preMarketPrice / currentPrice - 1) * 100).toFixed(2)}%)
-                    </span>
-                  </div>
-                </div>
-              )}
-              
-              {marketState === 'POST' && postMarketPrice > 0 && (
-                <div className="text-right">
-                  <p className="text-xs text-ios-gray font-medium">After Hours</p>
-                  <p className="font-medium">${typeof postMarketPrice === 'number' ? postMarketPrice.toFixed(2) : '--'}</p>
-                  <div className={`flex items-center justify-end text-xs ${postMarketPrice > currentPrice ? 'text-ios-green' : 'text-ios-red'}`}>
-                    {postMarketPrice > currentPrice ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
-                    <span>
-                      {postMarketPrice > currentPrice ? '+' : ''}
-                      {(postMarketPrice - currentPrice).toFixed(2)} 
-                      ({((postMarketPrice / currentPrice - 1) * 100).toFixed(2)}%)
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : null}
-        </div>
-        <div className="px-3 pb-3 flex items-end">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleEditClick}
-            className="text-ios-gray hover:text-white w-full mt-auto"
-          >
-            <Pencil className="h-4 w-4 mr-1" />
-            Edit
-          </Button>
+          {/* Edit Button - Pushed to the bottom */}
+          <div className="flex items-end mt-auto pt-2"> {/* Added pt-2 for spacing when content above is short */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleEditClick}
+              className="text-ios-gray hover:text-white w-full"
+            >
+              <Pencil className="h-4 w-4 mr-1" />
+              Edit
+            </Button>
+          </div>
         </div>
       </Card>
     </div>

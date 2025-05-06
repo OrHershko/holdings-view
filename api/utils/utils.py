@@ -6,7 +6,6 @@ from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
 
-# Helper function to get stock information
 @lru_cache()
 def get_stock_info(symbol):
     stock = yf.Ticker(symbol)
@@ -20,7 +19,7 @@ def get_stock_info(symbol):
     
     if hist.empty:
         try:
-             info = stock.info # Re-fetch info as backup
+             info = stock.info 
              if not info or info.get('regularMarketPrice') is None:
                   raise ValueError("Info lacks price data")
         except Exception:
@@ -77,10 +76,8 @@ def determine_asset_type(symbol: str, info: Dict[str, Any]) -> str:
     quote_type = info.get("quoteType", "").lower()
     if quote_type == "etf": return "etf"
     if quote_type == "cryptocurrency": return "crypto"
-    # Add checks for other types if needed
     return "stock"
 
-# Helper function to calculate SMA values
 def calculate_sma_values(close_values):
     """
     Calculate SMA values for different periods
@@ -92,19 +89,15 @@ def calculate_sma_values(close_values):
         key = f"sma{period}"
         sma_data[key] = []
         
-        # Need enough data points for the SMA period
         if len(close_values) >= period:
-            # Pure Python implementation of moving average
             sma_values = []
             for i in range(len(close_values) - period + 1):
                 window_sum = sum(close_values[i:i+period])
                 sma_values.append(window_sum / period)
             
-            # Pad with None values at the beginning to match original array length
             padding = [None] * (period - 1)
             sma_data[key] = padding + sma_values
         else:
-            # Not enough data for this period, fill with None
             sma_data[key] = [None] * len(close_values)
     
     return sma_data

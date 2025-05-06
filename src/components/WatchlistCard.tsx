@@ -292,8 +292,8 @@ function SortableWatchlistItem({
       
       {/* Content */}
       <div onClick={() => onSelectStock(stock.symbol)} className="flex-grow cursor-pointer">
-        <p className="font-medium truncate">{stock.symbol}</p>
-        {stock.name && <p className="text-xs text-ios-gray truncate">{stock.name}</p>}
+        <p className="font-medium">{stock.symbol}</p>
+        {stock.name && <p className="text-xs text-ios-gray">{stock.name}</p>}
       </div>
       
       {/* Price and change */}

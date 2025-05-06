@@ -64,6 +64,45 @@ const PortfolioPage = () => {
   const [isGuestReordering, setIsGuestReordering] = useState(false);
   const [isGuestWatchlistReordering, setIsGuestWatchlistReordering] = useState(false); // For watchlist reorder state
 
+  const initializeDefaultGuestWatchlist = useCallback(async () => {
+    const defaultSymbols = [
+      { symbol: '^GSPC', name: 'S&P 500 Index' },
+      { symbol: '^IXIC', name: 'NASDAQ Composite' },
+      { symbol: '^DJI', name: 'Dow Jones Industrial Average' },
+      { symbol: 'BTC-USD', name: 'Bitcoin USD' },
+    ];
+    const newWatchlistItems: WatchlistItem[] = [];
+
+    console.log("Initializing/Resetting default guest watchlist...");
+
+    for (const item of defaultSymbols) {
+      try {
+        const stockInfo = await fetchStock(item.symbol);
+        if (stockInfo && typeof stockInfo.price === 'number') {
+          newWatchlistItems.push({
+            symbol: stockInfo.symbol,
+            name: stockInfo.name || item.name,
+            price: stockInfo.price,
+            change: stockInfo.change || 0,
+            changePercent: stockInfo.changePercent || 0,
+          });
+        } else {
+          console.warn(`Could not fetch valid default data for ${item.symbol}`);
+        }
+      } catch (error) {
+        console.error(`Error fetching default stock info for ${item.symbol}:`, error);
+      }
+    }
+
+    if (newWatchlistItems.length > 0) {
+      setGuestWatchlistItems(newWatchlistItems); // Always set, overwriting previous state
+      console.log("Default guest watchlist items set:", newWatchlistItems);
+    } else {
+      setGuestWatchlistItems([]); // Ensure it's empty if fetching defaults failed
+      console.log("No default watchlist items were successfully fetched; guest watchlist cleared.");
+    }
+  }, [setGuestWatchlistItems]);
+
   // Load guest data from localStorage on initial mount if no user
   useEffect(() => {
     if (!auth.currentUser) { // Check initial auth state, not reactive `isGuest`
@@ -72,18 +111,15 @@ const PortfolioPage = () => {
         if (storedHoldings) {
           setGuestPortfolioHoldings(JSON.parse(storedHoldings));
         }
-        const storedWatchlist = localStorage.getItem('guestWatchlistItems');
-        if (storedWatchlist) {
-          setGuestWatchlistItems(JSON.parse(storedWatchlist));
-        }
+        // Always initialize/reset the guest watchlist to defaults on page load for guests
+        initializeDefaultGuestWatchlist();
       } catch (error) {
-        console.error("Error loading guest data from localStorage:", error);
-        // Clear potentially corrupted data
+        console.error("Error loading guest portfolio holdings from localStorage:", error);
         localStorage.removeItem('guestPortfolioHoldings');
-        localStorage.removeItem('guestWatchlistItems');
+        initializeDefaultGuestWatchlist(); // Still initialize watchlist even if holdings load fails
       }
     }
-  }, [auth]); // Depend on auth instance, runs once effectively for initial load decision
+  }, [auth, initializeDefaultGuestWatchlist]);
 
   // Save guest portfolio to localStorage when it changes
   useEffect(() => {
@@ -105,30 +141,29 @@ const PortfolioPage = () => {
       if (user) {
         // User logged in: Clear guest state and localStorage
         setGuestPortfolioHoldings([]);
-        setGuestWatchlistItems([]);
+        setGuestWatchlistItems([]); // Clear active state
         localStorage.removeItem('guestPortfolioHoldings');
-        localStorage.removeItem('guestWatchlistItems');
+        localStorage.removeItem('guestWatchlistItems'); // Clear stored watchlist
         queryClient.invalidateQueries({ queryKey: ["portfolio", user.uid] });
         queryClient.invalidateQueries({ queryKey: ["watchlist", user.uid] });
       } else {
-        // User logged out or no user initially: try to load from localStorage
-        // This might be redundant if the initial load effect covers it, but safe for logout
+        // User logged out or no user initially: try to load guest portfolio, reset watchlist
         try {
           const storedHoldings = localStorage.getItem('guestPortfolioHoldings');
           if (storedHoldings) setGuestPortfolioHoldings(JSON.parse(storedHoldings));
-          else setGuestPortfolioHoldings([]); // Ensure it's empty if nothing in LS
-          const storedWatchlist = localStorage.getItem('guestWatchlistItems');
-          if (storedWatchlist) setGuestWatchlistItems(JSON.parse(storedWatchlist));
-          else setGuestWatchlistItems([]); // Ensure it's empty
+          else setGuestPortfolioHoldings([]); 
+
+          // Always initialize/reset the guest watchlist to defaults on auth change to guest
+          initializeDefaultGuestWatchlist(); 
         } catch (error) {
-          console.error("Error reloading guest data from localStorage on logout:", error);
+          console.error("Error reloading guest portfolio from localStorage on logout/auth change:", error);
           setGuestPortfolioHoldings([]);
-          setGuestWatchlistItems([]);
+          initializeDefaultGuestWatchlist(); // Still initialize watchlist
         }
       }
     });
     return () => unsubscribe();
-  }, [auth, queryClient]);
+  }, [auth, queryClient, initializeDefaultGuestWatchlist]);
 
   /* ────────────────   GUEST PORTFOLIO HANDLERS ──────────────── */
   // Type for stock data passed from AddStockDialog
@@ -390,7 +425,12 @@ const PortfolioPage = () => {
 
   /* ────────────────   DND‑KIT SENSORS  ──────────────── */
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        delay: 150,
+        tolerance: 5,
+      },
+    }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
@@ -480,7 +520,7 @@ const PortfolioPage = () => {
       <aside className={`fixed inset-y-0 left-0 w-64 z-40 md:relative md:h-screen md:block transition-transform transform ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}> <Sidebar activeItem={activeItem} setActiveItem={setActiveItem} /> </aside>
 
       {/* Main */}
-      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+      <div className="flex-1 flex flex-col h-screen overflow-y-auto overflow-x-auto min-w-[380px]">
         <Header toggleMobileSidebar={toggleMobileSidebar} isGuest={isGuest} />
         <main className="flex-1 px-4 md:px-8 pb-8">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -528,7 +568,7 @@ const PortfolioPage = () => {
             </section>
 
             {/* Market overview + watchlist */}
-            <aside className="lg:col-span-1 space-y-6">
+            <aside className="lg:col-span-1 space-y-6 min-w-[320px]">
               <MarketOverview portfolio={basePortfolioHoldings.map((h) => h.symbol)} />
               <WatchlistCard 
                 watchlistItems={mergedWatchlist}

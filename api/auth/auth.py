@@ -8,10 +8,8 @@ from api.database.database import get_db
 from api.models.models import UserDB
 from sqlalchemy.exc import IntegrityError
 
-# Set up logging
 logger = logging.getLogger(__name__)
 
-# Initialize Firebase Admin SDK
 try:
     firebase_creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
     if not firebase_creds_path:
@@ -19,11 +17,9 @@ try:
         
     logger.info(f"Initializing Firebase with credentials from: {firebase_creds_path}")
     
-    # Check if the file exists
     if not os.path.exists(firebase_creds_path):
         raise FileNotFoundError(f"Firebase credentials file not found: {firebase_creds_path}")
         
-    # Initialize Firebase Admin SDK
     try:
         firebase_admin.initialize_app(credentials.Certificate(firebase_creds_path))
         logger.info("Firebase Admin SDK initialized successfully")
@@ -36,7 +32,7 @@ try:
         
 except Exception as e:
     logger.critical(f"Failed to initialize Firebase: {str(e)}")
-    # Still allow app to start, but auth will fail
+    raise
 
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> str:
     auth_header = request.headers.get("Authorization")
@@ -54,13 +50,11 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> str:
     logger.debug(f"Token length: {len(id_token)}")
     
     try:
-        # Verify the Firebase token
         logger.info("Verifying Firebase token")
         decoded_token = firebase_auth.verify_id_token(id_token)
         uid = decoded_token.get("uid")
         logger.info(f"Successfully verified token for user: {uid}")
         
-        # Try to find the user
         user = db.query(UserDB).filter(UserDB.uid == uid).first()
         if not user:
             logger.info(f"User not found, creating new user: {uid}")

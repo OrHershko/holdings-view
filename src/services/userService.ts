@@ -4,8 +4,6 @@ import { API_BASE_URL, fetchWithAuth } from './apiService';
 /**
  * User Service
  * Handles user authentication operations
- * Note: Data storage (portfolios, watchlists) has been migrated to PostgreSQL
- * This service now only handles Firebase authentication
  */
 
 /**

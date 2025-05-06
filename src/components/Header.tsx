@@ -41,7 +41,7 @@ const Header: React.FC<HeaderProps> = ({ toggleMobileSidebar, isGuest }) => {
               <UserCircle size={28} className="mr-2 opacity-80" /> {currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Guest'}
               </h1>
           )}
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-gray-400 pr-4">
             {isGuest ? 'Explore the platform. Your data is local to this browser.' : "Welcome back, here's what's happening today"}
           </p>
         </div>

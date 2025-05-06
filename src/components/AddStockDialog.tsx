@@ -287,7 +287,7 @@ const AddStockDialog: React.FC<AddStockDialogProps> = ({ isOpen, onClose, isGues
           
           <TabsContent value="manual" className="mt-4">
             <form onSubmit={handleSubmit}>
-              <div className="grid gap-6 py-4">
+              <div className="grid gap-6 py-4 overflow-y-auto max-h-[400px] pr-2">
                 {stockEntries.map((entry, index) => (
                   <div key={index} className="grid gap-3">
                     <div className="flex justify-between items-center">
