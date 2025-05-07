@@ -109,7 +109,6 @@ const UploadCsvDialog: React.FC<UploadCsvDialogProps> = ({ isOpen, onClose }) =>
             throw new Error(errorData.detail || 'Failed to upload holdings');
           }
 
-          // Only invalidate the portfolio query since we're no longer using Firebase
           queryClient.invalidateQueries({ queryKey: ['portfolio'] });
           
           toast({
@@ -117,11 +116,11 @@ const UploadCsvDialog: React.FC<UploadCsvDialogProps> = ({ isOpen, onClose }) =>
             description: `${formattedHoldings.length} holdings uploaded.`,
           });
 
-          setSelectedFile(null); // Clear selection
+          setSelectedFile(null); 
           if (fileInputRef.current) {
-            fileInputRef.current.value = ''; // Reset file input
+            fileInputRef.current.value = ''; 
           }
-          onClose(); // Close dialog
+          onClose(); 
 
         } catch (error: any) {
           toast({

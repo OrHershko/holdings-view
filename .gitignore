@@ -28,3 +28,4 @@ __pycache__
 # Environment variables
 .env
 Firebase Service Account.json
+app.yaml
