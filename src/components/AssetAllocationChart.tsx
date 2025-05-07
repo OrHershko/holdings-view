@@ -1,6 +1,5 @@
 import React from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { PortfolioHolding } from '@/api/stockApi';
 
 
@@ -37,28 +36,37 @@ const ChartLegend: React.FC<ChartLegendProps> = ({ payload, data }) => (
 );
 
 const AssetAllocationChart: React.FC<AssetAllocationChartProps> = ({ holdings }) => {
-  // Calculate total portfolio value
-  const totalValue = holdings.reduce((sum, holding) => sum + holding.value, 0);
 
-  // Group holdings by type
+  const cashHoldings = holdings.filter(h => h.type === 'cash');
+  const cashValue = cashHoldings.length > 0 ? cashHoldings[0].shares : 0;
+  
+  const modifiedHoldings = holdings.map(holding => {
+    if (holding.type === 'cash') {
+      return {
+        ...holding,
+        value: holding.shares
+      };
+    }
+    return holding;
+  });
+
+  const totalValue = modifiedHoldings.reduce((sum, holding) => sum + holding.value, 0);
+
   const assetTypes = {
-    stocks: holdings.filter(h => h.type === 'stock').reduce((sum, h) => sum + h.value, 0),
-    ETF: holdings.filter(h => h.type === 'etf').reduce((sum, h) => sum + h.value, 0),
-    crypto: holdings.filter(h => h.type === 'crypto').reduce((sum, h) => sum + h.value, 0),
-    cash: holdings.filter(h => h.type === 'cash').reduce((sum, h) => sum + h.value, 0)
+    stocks: modifiedHoldings.filter(h => h.type === 'stock').reduce((sum, h) => sum + h.value, 0),
+    ETF: modifiedHoldings.filter(h => h.type === 'etf').reduce((sum, h) => sum + h.value, 0),
+    crypto: modifiedHoldings.filter(h => h.type === 'crypto').reduce((sum, h) => sum + h.value, 0),
+    cash: cashValue 
   };
 
-  // Convert to array for the chart
   const data = Object.entries(assetTypes).map(([type, value]) => ({
     name: type.charAt(0).toUpperCase() + type.slice(1),
     value,
     percentage: ((value / totalValue) * 100).toFixed(1)
   }));
 
-  // Sort by value in descending order
   data.sort((a, b) => b.value - a.value);
 
-  // Custom label renderer
   const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, name, percentage }: any) => {
     if (percentage === '0.0') return null;
 

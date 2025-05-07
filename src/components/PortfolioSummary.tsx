@@ -16,7 +16,6 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({ portfolioSummary, h
   const isPositiveGain = totalGain >= 0;
   const isPositiveDayChange = dayChange >= 0;
   
-  // Find cash holdings
   const cashHolding = holdings.find(h => h.type === 'cash');
   const cashValue = cashHolding ? cashHolding.shares : 0;
 
