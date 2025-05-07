@@ -155,3 +155,23 @@ export const uploadPortfolio = async (holdings: HoldingCreate[]): Promise<Portfo
     throw error;
   }
 };
+
+export const addCash = async (amount: number): Promise<PortfolioData> => {
+  try {
+    const response = await fetchWithAuth(`${API_BASE_URL}/portfolio/cash`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Failed to add cash' }));
+      throw new Error(errorData.detail || 'Failed to add cash');
+    }
+    
+    return getPortfolio();
+  } catch (error) {
+    console.error('Error adding cash:', error);
+    throw error;
+  }
+};

@@ -10,6 +10,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import Sidebar from "@/components/Sidebar";
 import MarketOverview from "@/components/MarketOverview";
 import AddStockDialog from "@/components/AddStockDialog";
+import AddCashDialog from "@/components/AddCashDialog";
 import EditHoldingDialog from "@/components/EditHoldingDialog";
 import { Button } from "@/components/ui/button";
 import { fetchStock } from "@/services/stockService";
@@ -417,7 +418,9 @@ const PortfolioPage = () => {
   const [localOrder, setLocalOrder] = useState<string[]>([]);
 
   useEffect(() => {
-    const ordered = [...basePortfolioHoldings] // Use basePortfolioHoldings
+    // Filter out cash holdings and then sort by position
+    const ordered = [...basePortfolioHoldings]
+      .filter(holding => holding.type !== 'cash') // Filter out cash holdings from display
       .sort((a, b) => a.position - b.position)
       .map((h) => h.symbol);
     setLocalOrder(ordered);
@@ -474,6 +477,7 @@ const PortfolioPage = () => {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activeItem, setActiveItem] = useState("home");
   const [isAddStockDialogOpen, setIsAddStockDialogOpen] = useState(false);
+  const [isAddCashDialogOpen, setIsAddCashDialogOpen] = useState(false);
   const [editingHolding, setEditingHolding] = useState<{
     symbol: string;
     name: string;
@@ -504,6 +508,76 @@ const PortfolioPage = () => {
   const afterDialogClose = async (setter: React.Dispatch<React.SetStateAction<any>>) => {
     setter(false);
     await refetchPortfolio();
+  };
+
+  /* ────────────────   GUEST CASH HANDLER ──────────────── */
+  const handleGuestAddCash = (amount: number) => {
+    // Find if there's already a cash holding
+    const existingCashIndex = guestPortfolioHoldings.findIndex(h => h.type === 'cash');
+    
+    if (existingCashIndex !== -1) {
+      // Update existing cash holding
+      const updatedHoldings = [...guestPortfolioHoldings];
+      const cashHolding = updatedHoldings[existingCashIndex];
+      const newCashAmount = cashHolding.shares + amount;
+      
+      // Ensure cash doesn't go below zero
+      if (newCashAmount < 0) {
+        toast({
+          title: 'Error',
+          description: 'Cash balance cannot go below zero',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      updatedHoldings[existingCashIndex] = {
+        ...cashHolding,
+        shares: newCashAmount, // Shares represents cash amount
+        value: newCashAmount,
+        currentPrice: 1, // Cash always has price of 1
+      };
+      
+      setGuestPortfolioHoldings(updatedHoldings);
+    } else {
+      // Create new cash holding if none exists (only for positive amounts)
+      if (amount <= 0) {
+        toast({
+          title: 'Error',
+          description: 'Cannot subtract cash from an empty balance',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      const maxPosition = guestPortfolioHoldings.reduce((max, h) => Math.max(max, h.position), -1);
+      
+      const newCashHolding: PortfolioHolding = {
+        symbol: 'CASH',
+        name: 'Cash',
+        shares: amount,
+        averageCost: 1,
+        position: maxPosition + 1,
+        currentPrice: 1,
+        change: 0,
+        changePercent: 0,
+        value: amount,
+        gain: 0,
+        gainPercent: 0,
+        type: 'cash',
+        preMarketPrice: 0,
+        postMarketPrice: 0,
+        marketState: 'REGULAR',
+      };
+      
+      setGuestPortfolioHoldings([...guestPortfolioHoldings, newCashHolding]);
+    }
+  };
+  
+  // Get the current cash value for the portfolio
+  const calculateCurrentCash = (): number => {
+    const cashHolding = mergedHoldings.find(h => h.type === 'cash');
+    return cashHolding ? cashHolding.shares : 0;
   };
 
   /* ────────────────   RENDER  ──────────────── */
@@ -542,16 +616,26 @@ const PortfolioPage = () => {
               <div className="flex justify-between items-center">
                 <h2 className="text-lg font-medium ml-1">Your Holdings</h2>
                 <div className="flex space-x-2">
-                  <Button onClick={() => setIsAddStockDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700">Add Stock</Button>
+                  <Button 
+                    onClick={() => setIsAddCashDialogOpen(true)} 
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    Add/Subtract Cash
+                  </Button>
+                  <Button 
+                    onClick={() => setIsAddStockDialogOpen(true)} 
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    Add Stock
+                  </Button>
                 </div>
               </div>
 
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={() => document.body.style.cursor = "grabbing"} onDragEnd={handleDragEnd}>
                 <SortableContext items={localOrder} strategy={verticalListSortingStrategy}>
                   {localOrder.map((symbol) => {
-                    // Find the holding by symbol, with null check
                     const holding = mergedHoldings.find((h) => h.symbol === symbol);
-                    if (!holding) return null; // Skip if not found
+                    if (!holding || holding.type === 'cash') return null;
                     return (
                       <StockCard
                         key={symbol}
@@ -590,6 +674,13 @@ const PortfolioPage = () => {
         onClose={() => afterDialogClose(setIsAddStockDialogOpen)}
         isGuest={isGuest}
         onAddGuestStocks={handleGuestAddStocks}
+      />
+      <AddCashDialog
+        isOpen={isAddCashDialogOpen}
+        onClose={() => afterDialogClose(setIsAddCashDialogOpen)}
+        isGuest={isGuest}
+        onAddGuestCash={handleGuestAddCash}
+        currentCash={calculateCurrentCash()}
       />
       {editingHolding && <EditHoldingDialog 
         isOpen={!!editingHolding} 
