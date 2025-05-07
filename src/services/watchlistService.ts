@@ -61,7 +61,6 @@ export const removeFromWatchlist = async (symbol: string): Promise<WatchlistItem
       throw new Error(errorData.detail || 'Failed to remove from watchlist');
     }
     
-    // Refetch the watchlist to get updated data
     return getWatchlist();
   } catch (error) {
     console.error('Error removing from watchlist:', error);
@@ -87,7 +86,6 @@ export const reorderWatchlist = async (orderedSymbols: string[]): Promise<Watchl
       throw new Error(errorData.detail || 'Failed to reorder watchlist');
     }
     
-    // Return the reordered watchlist
     return await response.json();
   } catch (error) {
     console.error('Error reordering watchlist:', error);

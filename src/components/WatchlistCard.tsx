@@ -7,7 +7,6 @@ import { useAddToWatchlist, useRemoveFromWatchlist, useReorderWatchlist } from '
 import { useToast } from './ui/use-toast';
 import { WatchlistItem } from '@/hooks/usePostgresData';
 
-// dnd-kit imports
 import {
   DndContext,
   closestCenter,
@@ -55,7 +54,6 @@ const WatchlistCard: React.FC<WatchlistCardProps> = ({
   const removeMutation = useRemoveFromWatchlist();
   const reorderMutation = useReorderWatchlist();
   
-  // Setup sensors for drag and drop
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -63,7 +61,6 @@ const WatchlistCard: React.FC<WatchlistCardProps> = ({
     })
   );
 
-  // Update local order when watchlistItems prop changes
   useEffect(() => {
     if (watchlistItems && watchlistItems.length >= 0) {
       setLocalOrder(watchlistItems.map(item => item.symbol));
@@ -93,9 +90,8 @@ const WatchlistCard: React.FC<WatchlistCardProps> = ({
         setLocalOrder(arrayMove(newOrder, newIndex, oldIndex)); 
       }
     } else {
-      // Fallback or error if guest handler is missing
       console.warn('WatchlistCard: Guest mode but onReorderGuestWatchlist not provided.');
-      setLocalOrder(arrayMove(newOrder, newIndex, oldIndex)); // Rollback optimistic update
+      setLocalOrder(arrayMove(newOrder, newIndex, oldIndex)); 
     }
   };
 
@@ -105,8 +101,6 @@ const WatchlistCard: React.FC<WatchlistCardProps> = ({
 
     if (isGuest && onAddGuestWatchlistItem) {
       onAddGuestWatchlistItem(symbol);
-      // Guest add usually doesn't need immediate server feedback for toast, Index.tsx handles state.
-      // toast({ title: "Added to Guest Watchlist", description: `${symbol} added.` });
       setNewSymbol('');
     } else if (!isGuest) {
       const symbolExists = watchlistItems?.some(item => item.symbol === symbol);
@@ -139,7 +133,6 @@ const WatchlistCard: React.FC<WatchlistCardProps> = ({
   const handleRemove = (symbol: string) => {
     if (isGuest && onRemoveGuestWatchlistItem) {
       onRemoveGuestWatchlistItem(symbol);
-      // toast({ title: "Removed from Guest Watchlist", description: `${symbol} removed.` });
     } else if (!isGuest) {
       removeMutation.mutate(symbol, {
          onSuccess: () => {
@@ -224,7 +217,6 @@ const WatchlistCard: React.FC<WatchlistCardProps> = ({
   );
 };
 
-// Sortable Item Component
 interface SortableWatchlistItemProps {
   id: string;
   stock: WatchlistItem;
@@ -235,8 +227,6 @@ interface SortableWatchlistItemProps {
   isGuest?: boolean;
   isRemoving?: boolean;
 }
-
-// SortableWatchlistItem component is defined below
 
 function SortableWatchlistItem({
   id,
@@ -266,6 +256,13 @@ function SortableWatchlistItem({
     background: isDragging ? 'rgba(63, 63, 70, 0.5)' : undefined,
   };
 
+  const showPreMarket = stock.marketState === 'PRE' && stock.preMarketPrice !== undefined;
+  const showPostMarket = stock.marketState === 'POST' && stock.postMarketPrice !== undefined;
+  
+  const displayPrice = showPreMarket ? stock.preMarketPrice : 
+                       showPostMarket ? stock.postMarketPrice : 
+                       stock.price;
+
   return (
     <div
       ref={setNodeRef}
@@ -282,7 +279,6 @@ function SortableWatchlistItem({
         tabIndex={0}
         onKeyDown={(e) => {
           if (e.key === ' ' || e.key === 'Enter') {
-            // Trigger the drag with space or enter key
             e.preventDefault();
           }
         }}
@@ -298,9 +294,17 @@ function SortableWatchlistItem({
       
       {/* Price and change */}
       <div className="text-right mx-4 cursor-pointer min-w-[70px]" onClick={() => onSelectStock(stock.symbol)}>
-        {stock.price !== undefined && stock.price !== null ? (
+        {displayPrice !== undefined && displayPrice !== null ? (
           <>
-            <p className="font-medium truncate">${stock.price.toFixed(2)}</p>
+            <div className="font-medium truncate flex items-center justify-end">
+              <span>${displayPrice.toFixed(2)}</span>
+              {showPreMarket && (
+                <span className="ml-1 text-xs text-amber-400">pre</span>
+              )}
+              {showPostMarket && (
+                <span className="ml-1 text-xs text-purple-400">post</span>
+              )}
+            </div>
             <div className={`text-xs flex items-center justify-end ${isPositiveChange ? 'text-ios-green' : 'text-ios-red'}`}>
               {isPositiveChange ? 
                 <TrendingUp className="h-3 w-3 mr-1" /> : 

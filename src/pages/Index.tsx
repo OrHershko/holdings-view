@@ -314,7 +314,6 @@ const PortfolioPage = () => {
   /* ────────────────   DERIVED DATA - Step 3: Fetch Live Data ──────────────── */
   const { data: liveStockData = [] } = useMultipleStockInfo(allSymbols);
   
-  // Log when stock data updates
   useEffect(() => {
     console.log(`Stock data updated at ${new Date().toLocaleTimeString()}, ${liveStockData.length} symbols loaded`);
   }, [liveStockData]);
@@ -387,7 +386,10 @@ const PortfolioPage = () => {
         name: live?.name ?? item.name,
         price: live?.price ?? item.price, 
         change: live?.change ?? item.change, 
-        changePercent: live?.changePercent ?? item.changePercent, 
+        changePercent: live?.changePercent ?? item.changePercent,
+        preMarketPrice: live?.preMarketPrice ?? item.preMarketPrice,
+        postMarketPrice: live?.postMarketPrice ?? item.postMarketPrice,
+        marketState: live?.marketState ?? item.marketState
       };
     });
   }, [baseWatchlist, liveStockData]);

@@ -322,41 +322,37 @@ function getExtendedPeriod(displayPeriod: string, maxIndicatorPeriod: number): s
 }
 
 function estimateDataPointsForPeriod(period: string, interval: string, totalFetchedPoints: number): number {
-    // If period is 'max', show all fetched points
     if (period.toLowerCase() === 'max') {
         return totalFetchedPoints;
     }
 
     const periodMatch = period.match(/(\d+)([dmy]o?)/);
-    if (!periodMatch) return totalFetchedPoints; // Fallback
+    if (!periodMatch) return totalFetchedPoints; 
 
     const [_, valueStr, unitRaw] = periodMatch;
     const value = parseInt(valueStr);
     const unit = unitRaw.charAt(0);
 
-    // Estimate trading days/periods based on requested period
     let estimatedPoints: number;
 
-    // Rough estimates (consider weekends/holidays for daily/weekly)
     const pointsPerDay = {
         '1m': 390, '2m': 195, '5m': 78, '15m': 26, '30m': 13,
-        '60m': 7, '1h': 7, '90m': 5, // Approx
-        '1d': 1, '5d': 1/5, '1wk': 1/5, '1mo': 1/22, // Points per trading day
+        '60m': 7, '1h': 7, '90m': 5,
+        '1d': 1, '5d': 1/5, '1wk': 1/5, '1mo': 1/22,
     };
 
-    const multiplier = pointsPerDay[interval] || 1; // Default to 1 (daily)
+    const multiplier = pointsPerDay[interval] || 1; 
 
     if (unit === 'd') {
         estimatedPoints = value * multiplier;
     } else if (unit === 'm') {
-        estimatedPoints = value * 22 * multiplier; // Approx 22 trading days/month
+        estimatedPoints = value * 22 * multiplier; 
     } else if (unit === 'y') {
-        estimatedPoints = value * 252 * multiplier; // Approx 252 trading days/year
+        estimatedPoints = value * 252 * multiplier; 
     } else {
-        return totalFetchedPoints; // Fallback
+        return totalFetchedPoints; 
     }
 
-    // Return the estimated number, but not more than the total points fetched
     return Math.min(Math.ceil(estimatedPoints), totalFetchedPoints);
 }
 
@@ -370,9 +366,7 @@ export const fetchPortfolio = async (): Promise<{
     
     const data = await response.json();
     
-    // Map portfolio holdings from API response
     const holdings: PortfolioHolding[] = data.holdings?.map((item: any) => {
-      // Create holding object with all available data
       const holding: PortfolioHolding = {
         symbol: item.symbol,
         name: item.name || 'N/A',
@@ -410,7 +404,6 @@ export const fetchPortfolio = async (): Promise<{
   }
 };
 
-// --- Watchlist Types (Define if needed or use inline) ---
 export interface WatchlistItem {
   symbol: string;
   name?: string;
@@ -418,6 +411,7 @@ export interface WatchlistItem {
   change?: number;
   changePercent?: number;
   preMarketPrice?: number;
+  postMarketPrice?: number;
   marketState?: string;
 }
 
@@ -455,14 +449,13 @@ export const searchStocks = async (query: string): Promise<StockData[]> => {
   const response = await fetchWithAuth(`${API_BASE_URL}/search?q=${encodeURIComponent(query)}`);
   if (!response.ok) throw new Error('Failed to search stocks');
   const data = await response.json();
-  // Assuming backend returns a list of stock-like objects
   return data.results?.map((item: any) => ({
     symbol: item.symbol,
     name: item.name,
-    price: item.price || 0, // Search results might not have live price
+    price: item.price || 0,
     change: item.change || 0,
     changePercent: item.changePercent || 0,
-    marketCap: 0, // Search results might not have this detail
+    marketCap: 0,
     volume: 0,
   })) || [];
 };
@@ -471,23 +464,19 @@ export const fetchNews = async (symbol: string): Promise<NewsArticle[]> => {
   try {
     const response = await fetchWithAuth(`${API_BASE_URL}/news/${symbol}`);
     
-    // Check if response is ok
     if (!response.ok) {
       console.warn(`Failed to fetch news for ${symbol}: ${response.status} ${response.statusText}`);
       return [];
     }
     
-    // Try to parse the JSON, but handle parse errors gracefully
     try {
       const data = await response.json();
       
-      // Validate the response data is an array
       if (!Array.isArray(data)) {
         console.warn(`Invalid news data for ${symbol}: expected array but got ${typeof data}`);
         return [];
       }
       
-      // Map and validate each news article
       return data.map((item): NewsArticle => ({
         title: item.title || "No title available",
         link: item.link || "#",
