@@ -189,6 +189,7 @@ const PortfolioPage = () => {
               preMarketPrice: stockInfo.preMarketPrice || 0,
               postMarketPrice: stockInfo.postMarketPrice || 0,
               marketState: stockInfo.marketState || 'REGULAR',
+              purchaseDate: new Date().toISOString()
             };
             updatedHoldings.push(newHolding);
           }
@@ -325,6 +326,7 @@ const PortfolioPage = () => {
       let totalGain = 0;
       let totalCost = 0;
       let dayChange = 0;
+      let totalStartValue = 0;
 
       basePortfolioHoldings.forEach(h => { 
         const live = liveStockData.find(s => s.symbol === h.symbol);
@@ -335,11 +337,22 @@ const PortfolioPage = () => {
         totalValue += price * h.shares;
         totalGain += (price - h.averageCost) * h.shares;
         totalCost += cost;
-        dayChange += changeVal * h.shares;
+        
+        const isPurchasedToday = h.purchaseDate ? 
+          new Date(h.purchaseDate).toDateString() === new Date().toDateString() : false;
+        
+        if (isPurchasedToday) {
+          dayChange += (price - h.averageCost) * h.shares;
+          totalStartValue += h.averageCost * h.shares;
+        } else {
+          dayChange += changeVal * h.shares;
+          totalStartValue += (price * h.shares) - (changeVal * h.shares);
+        }
       });
 
       const totalGainPercent = totalCost > 0 ? (totalGain / totalCost) * 100 : 0;
-      const dayChangePercent = 0; 
+      
+      const dayChangePercent = totalStartValue > 0 ? (dayChange / totalStartValue) * 100 : 0;
 
       return {
         totalValue,
@@ -538,6 +551,7 @@ const PortfolioPage = () => {
         preMarketPrice: 0,
         postMarketPrice: 0,
         marketState: 'REGULAR',
+        purchaseDate: new Date().toISOString()
       };
       
       setGuestPortfolioHoldings([...guestPortfolioHoldings, newCashHolding]);

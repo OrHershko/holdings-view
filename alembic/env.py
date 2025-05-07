@@ -5,8 +5,7 @@ from alembic import context
 import os
 from dotenv import load_dotenv
 
-# Import your models
-from api.models.models import Base
+from backend.api.models.models import Base
 
 load_dotenv()
 

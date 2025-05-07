@@ -6,7 +6,7 @@ import type { PortfolioHolding, PortfolioSummary as PortfolioSummaryType } from 
 
 interface PortfolioSummaryProps {
   portfolioSummary: PortfolioSummaryType;
-  holdings: PortfolioHolding[]; // Added for AssetAllocationChart
+  holdings: PortfolioHolding[];
 }
 
 const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({ portfolioSummary, holdings }) => {

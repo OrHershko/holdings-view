@@ -28,6 +28,7 @@ export interface PortfolioHolding {
   preMarketPrice: number;
   postMarketPrice: number;
   marketState?: string;
+  purchaseDate?: string;
 }
 
 export interface PortfolioSummary {

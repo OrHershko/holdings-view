@@ -190,7 +190,7 @@ const WatchlistCard: React.FC<WatchlistCardProps> = ({
               <div className="space-y-2">
                 {localOrder.map((symbol) => {
                   const stock = watchlistItems.find(item => item.symbol === symbol);
-                  if (!stock) return null; // Skip if not found
+                  if (!stock) return null; 
                   const isPositiveChange = stock.change ? stock.change >= 0 : true;
                   
                   return (
@@ -288,11 +288,11 @@ function SortableWatchlistItem({
       {/* Content */}
       <div onClick={() => onSelectStock(stock.symbol)} className="flex-grow cursor-pointer">
         <p className="font-medium">{stock.symbol}</p>
-        {stock.name && <p className="text-xs text-ios-gray">{stock.name}</p>}
+        {stock.name && <p className="text-xs text-ios-gray min-w-[140px]">{stock.name}</p>}
       </div>
       
       {/* Price and change */}
-      <div className="text-right mx-4 cursor-pointer min-w-[70px]" onClick={() => onSelectStock(stock.symbol)}>
+      <div className="grid grid-cols-1 min-w-[100px]" onClick={() => onSelectStock(stock.symbol)}>
         {displayPrice !== undefined && displayPrice !== null ? (
           <>
             <div className="font-medium truncate flex items-center justify-end">

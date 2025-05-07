@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowUpRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button'; // Assuming you have a Button component
+import { Button } from '@/components/ui/button';
 import { fetchNews as fetchNewsService } from '@/services/stockService';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
@@ -24,42 +24,34 @@ const MarketOverview: React.FC<MarketOverviewProps> = ({ portfolio }) => {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Use a ref to track current portfolio symbols for comparison
   const prevPortfolioRef = React.useRef<string[]>([]);
   const auth = getAuth();
-  
-  // Listen for auth state changes - clear news when user changes
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      // Reset news and force refetch when user changes
       setNews({});
       setAllNews([]);
       setLoading(true);
-      // Portfolio will change which will trigger news fetch
     });
     
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    // Don't refetch if only the order changed
     const currentSymbols = [...portfolio].sort().join(',');
     const prevSymbols = [...prevPortfolioRef.current].sort().join(',');
     
-    // Only fetch if the symbols have actually changed (added or removed symbols)
     if (currentSymbols !== prevSymbols) {
       const fetchNews = async (symbol: string) => {
         try {
-          // Use the service function instead of direct fetch
           const articles = await fetchNewsService(symbol);
           
-          // Limit to 5 articles per symbol
           const limitedData = articles.slice(0, 5);
           
           setNews(prev => ({ ...prev, [symbol]: limitedData }));
         } catch (error) {
           console.error(`Error fetching news for ${symbol}:`, error);
-          setNews(prev => ({ ...prev, [symbol]: [] })); // Set empty array on error
+          setNews(prev => ({ ...prev, [symbol]: [] })); 
         }
       };
 
@@ -73,11 +65,9 @@ const MarketOverview: React.FC<MarketOverviewProps> = ({ portfolio }) => {
       }
     }
     
-    // Update ref for next comparison
     prevPortfolioRef.current = portfolio;
   }, [portfolio]);
 
-  // Combine news from all symbols into a single array
   useEffect(() => {
     const combinedNews: NewsArticle[] = [];
     Object.values(news).forEach(articles => {
@@ -88,12 +78,10 @@ const MarketOverview: React.FC<MarketOverviewProps> = ({ portfolio }) => {
     setAllNews(combinedNews);
   }, [news]);
 
-  // Pagination calculations
   const totalPages = Math.ceil(allNews.length / ARTICLES_PER_PAGE);
   const startIndex = (currentPage - 1) * ARTICLES_PER_PAGE;
   const endIndex = startIndex + ARTICLES_PER_PAGE;
   
-  // Make sure we're using the allNews array and double-check it's an array before slicing
   const currentNews = Array.isArray(allNews) 
     ? allNews.slice(startIndex, Math.min(endIndex, allNews.length)) 
     : [];
