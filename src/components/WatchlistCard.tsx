@@ -3,9 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Trash2, TrendingUp, TrendingDown, Loader2, GripVertical } from 'lucide-react';
-import { useAddToWatchlist, useRemoveFromWatchlist, useReorderWatchlist } from '@/hooks/usePostgresData';
+import { useAddToWatchlist, useRemoveFromWatchlist, useReorderWatchlist, WatchlistItem } from '@/hooks/usePostgresData';
 import { useToast } from './ui/use-toast';
-import { WatchlistItem } from '@/hooks/usePostgresData';
 
 import {
   DndContext,

@@ -34,7 +34,7 @@ export function useStock(symbol: string) {
     queryKey: ['stock', symbol],
     queryFn: () => fetchStock(symbol),
     enabled: !!symbol,
-    staleTime: 60000, // 1 minute
+    staleTime: 30000, 
   });
 }
 
@@ -48,7 +48,7 @@ export function useStockHistory(
     queryKey: ['stockHistory', symbol, period, interval],
     queryFn: () => fetchStockHistory(symbol, period, interval),
     enabled: !!symbol,
-    staleTime: 300000, // 5 minutes
+    staleTime: 300000, 
     ...options
   });
 }
@@ -75,7 +75,7 @@ export function useWatchlist(options?: { enabled?: boolean }) {
   return useQuery<WatchlistItem[]>({
     queryKey: ['watchlist', userId],
     queryFn: getWatchlist,
-    staleTime: 60000, // 1 minute
+    staleTime: 60000, 
     enabled: options?.enabled !== undefined ? options.enabled && !!userId : !!userId,
   });
 }
@@ -85,7 +85,7 @@ export function useStockSearch(query: string) {
     queryKey: ['stockSearch', query],
     queryFn: () => searchStocks(query),
     enabled: query.length > 1,
-    staleTime: 60000, // 1 minute
+    staleTime: 60000, 
   });
 }
 
@@ -99,7 +99,6 @@ export function useAddStock() {
   return useMutation({
     mutationFn: (stock: HoldingCreate) => addStock(stock),
     onSuccess: () => {
-      // Invalidate and refetch portfolio data
       queryClient.invalidateQueries({ queryKey: ['portfolio', userId] });
       queryClient.refetchQueries({ queryKey: ['portfolio', userId] });
     },
@@ -117,7 +116,6 @@ export function useRemoveStock() {
   return useMutation({
     mutationFn: (symbol: string) => removeStock(symbol),
     onSuccess: () => {
-      // Invalidate and refetch portfolio data
       queryClient.invalidateQueries({ queryKey: ['portfolio', userId] });
       queryClient.refetchQueries({ queryKey: ['portfolio', userId] });
     },
@@ -171,7 +169,6 @@ export const useAddToWatchlist = () => {
   return useMutation({
     mutationFn: (symbol: string) => addToWatchlist(symbol),
     onSuccess: () => {
-      // Invalidate and refetch watchlist data
       queryClient.invalidateQueries({ queryKey: ['watchlist', userId] });
       queryClient.refetchQueries({ queryKey: ['watchlist', userId] });
     },
@@ -189,7 +186,6 @@ export function useRemoveFromWatchlist() {
   return useMutation({
     mutationFn: (symbol: string) => removeFromWatchlist(symbol),
     onSuccess: () => {
-      // Invalidate and refetch watchlist data
       queryClient.invalidateQueries({ queryKey: ['watchlist', userId] });
       queryClient.refetchQueries({ queryKey: ['watchlist', userId] });
     },
@@ -228,13 +224,26 @@ export function useStockInfo(symbol: string) {
 }
 
 export function useMultipleStockInfo(symbols: string[]) {
+  const queryClient = useQueryClient();
+  console.log(`useMultipleStockInfo called with ${symbols.length} symbols:`, symbols);
+  
   return useQuery<StockData[], Error>({
     queryKey: ['multipleStockInfo', symbols],
-    queryFn: () => Promise.all(symbols.map(fetchStock)),
+    queryFn: async () => {
+      console.log(`Fetching data for ${symbols.length} symbols at ${new Date().toLocaleTimeString()}`);
+      try {
+        const results = await Promise.all(symbols.map(fetchStock));
+        console.log(`Successfully fetched data for ${results.length} symbols`);
+        return results;
+      } catch (error) {
+        console.error("Error fetching multiple stock info:", error);
+        throw error;
+      }
+    },
     enabled: symbols.length > 0,
-    staleTime: 5000, 
-    refetchInterval: 15000, 
-    refetchOnWindowFocus: true,
+    staleTime: 30000, 
+    refetchInterval: 35000, 
+    refetchOnWindowFocus: true
   });
 }
 
