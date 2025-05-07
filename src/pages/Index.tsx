@@ -44,26 +44,11 @@ const PortfolioPage = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
   const isGuest = !currentUser;
 
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      setCurrentUser(user);
-      // Potentially refetch data or clear guest data if user logs in/out
-      if (user) {
-        // Clear guest data if user logs in
-        setGuestPortfolioHoldings([]);
-        setGuestWatchlistItems([]);
-        queryClient.invalidateQueries({ queryKey: ["portfolio", user.uid] });
-        queryClient.invalidateQueries({ queryKey: ["watchlist", user.uid] });
-      }
-    });
-    return () => unsubscribe();
-  }, [auth, queryClient]);
-
   /* ────────────────   GUEST DATA STATE (if no user is logged in) ──────────────── */
   const [guestPortfolioHoldings, setGuestPortfolioHoldings] = useState<PortfolioHolding[]>([]);
   const [guestWatchlistItems, setGuestWatchlistItems] = useState<WatchlistItem[]>([]);
   const [isGuestReordering, setIsGuestReordering] = useState(false);
-  const [isGuestWatchlistReordering, setIsGuestWatchlistReordering] = useState(false); // For watchlist reorder state
+  const [isGuestWatchlistReordering, setIsGuestWatchlistReordering] = useState(false); 
 
   const initializeDefaultGuestWatchlist = useCallback(async () => {
     const defaultSymbols = [
@@ -96,40 +81,36 @@ const PortfolioPage = () => {
     }
 
     if (newWatchlistItems.length > 0) {
-      setGuestWatchlistItems(newWatchlistItems); // Always set, overwriting previous state
+      setGuestWatchlistItems(newWatchlistItems); 
       console.log("Default guest watchlist items set:", newWatchlistItems);
     } else {
-      setGuestWatchlistItems([]); // Ensure it's empty if fetching defaults failed
+      setGuestWatchlistItems([]); 
       console.log("No default watchlist items were successfully fetched; guest watchlist cleared.");
     }
   }, [setGuestWatchlistItems]);
 
-  // Load guest data from localStorage on initial mount if no user
   useEffect(() => {
-    if (!auth.currentUser) { // Check initial auth state, not reactive `isGuest`
+    if (!auth.currentUser) { 
       try {
         const storedHoldings = localStorage.getItem('guestPortfolioHoldings');
         if (storedHoldings) {
           setGuestPortfolioHoldings(JSON.parse(storedHoldings));
         }
-        // Always initialize/reset the guest watchlist to defaults on page load for guests
         initializeDefaultGuestWatchlist();
       } catch (error) {
         console.error("Error loading guest portfolio holdings from localStorage:", error);
         localStorage.removeItem('guestPortfolioHoldings');
-        initializeDefaultGuestWatchlist(); // Still initialize watchlist even if holdings load fails
+        initializeDefaultGuestWatchlist(); 
       }
     }
   }, [auth, initializeDefaultGuestWatchlist]);
 
-  // Save guest portfolio to localStorage when it changes
   useEffect(() => {
     if (isGuest) {
       localStorage.setItem('guestPortfolioHoldings', JSON.stringify(guestPortfolioHoldings));
     }
   }, [guestPortfolioHoldings, isGuest]);
 
-  // Save guest watchlist to localStorage when it changes
   useEffect(() => {
     if (isGuest) {
       localStorage.setItem('guestWatchlistItems', JSON.stringify(guestWatchlistItems));
@@ -140,26 +121,24 @@ const PortfolioPage = () => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       setCurrentUser(user);
       if (user) {
-        // User logged in: Clear guest state and localStorage
         setGuestPortfolioHoldings([]);
-        setGuestWatchlistItems([]); // Clear active state
+        setGuestWatchlistItems([]); 
         localStorage.removeItem('guestPortfolioHoldings');
-        localStorage.removeItem('guestWatchlistItems'); // Clear stored watchlist
+        localStorage.removeItem('guestWatchlistItems'); 
         queryClient.invalidateQueries({ queryKey: ["portfolio", user.uid] });
         queryClient.invalidateQueries({ queryKey: ["watchlist", user.uid] });
+        queryClient.invalidateQueries({ queryKey: ['multipleStockInfo'] });
       } else {
-        // User logged out or no user initially: try to load guest portfolio, reset watchlist
         try {
           const storedHoldings = localStorage.getItem('guestPortfolioHoldings');
           if (storedHoldings) setGuestPortfolioHoldings(JSON.parse(storedHoldings));
           else setGuestPortfolioHoldings([]); 
 
-          // Always initialize/reset the guest watchlist to defaults on auth change to guest
           initializeDefaultGuestWatchlist(); 
         } catch (error) {
           console.error("Error reloading guest portfolio from localStorage on logout/auth change:", error);
           setGuestPortfolioHoldings([]);
-          initializeDefaultGuestWatchlist(); // Still initialize watchlist
+          initializeDefaultGuestWatchlist(); 
         }
       }
     });
@@ -167,7 +146,6 @@ const PortfolioPage = () => {
   }, [auth, queryClient, initializeDefaultGuestWatchlist]);
 
   /* ────────────────   GUEST PORTFOLIO HANDLERS ──────────────── */
-  // Type for stock data passed from AddStockDialog
   type GuestStockAddData = { symbol: string; shares: number; averageCost: number; name?: string };
 
   const handleGuestAddStocks = async (stocksToAdd: GuestStockAddData[]) => {
@@ -178,7 +156,6 @@ const PortfolioPage = () => {
       try {
         const stockInfo = await fetchStock(stock.symbol.toUpperCase());
         if (!stockInfo || stockInfo.price === undefined || stockInfo.price === null) {
-          // Check if price is explicitly null or undefined, 0 might be a valid (though rare) price
           throw new Error(`No valid price data found for ${stock.symbol}`);
         }
 
@@ -197,12 +174,12 @@ const PortfolioPage = () => {
           } else {
             maxPosition++;
             const newHolding: PortfolioHolding = {
-              symbol: stockInfo.symbol, // Use symbol from fetched data for correct casing
+              symbol: stockInfo.symbol, 
               name: stockInfo.name || stock.symbol.toUpperCase(),
               shares: stock.shares,
               averageCost: stock.averageCost,
               position: maxPosition,
-              currentPrice: stockInfo.price, // Use fetched price
+              currentPrice: stockInfo.price, 
               change: stockInfo.change || 0,
               changePercent: stockInfo.changePercent || 0,
               value: stock.shares * stockInfo.price,
@@ -215,7 +192,7 @@ const PortfolioPage = () => {
             };
             updatedHoldings.push(newHolding);
           }
-          return updatedHoldings.sort((a, b) => a.position - b.position); // Ensure order is maintained
+          return updatedHoldings.sort((a, b) => a.position - b.position); 
         });
         addedSymbols.push(stock.symbol.toUpperCase());
       } catch (error) {
@@ -228,7 +205,7 @@ const PortfolioPage = () => {
       toast({
         title: "Stocks Processed (Guest)",
         description: `${addedSymbols.join(", ")} added/updated. ${failedSymbols.length > 0 ? `Failed: ${failedSymbols.join(", ")}` : ""}`,
-        variant: failedSymbols.length > 0 ? "default" : "default", // "default" for success, could be different
+        variant: "default", 
       });
     } else if (failedSymbols.length > 0) {
       toast({
@@ -252,7 +229,6 @@ const PortfolioPage = () => {
   const handleGuestDeleteHolding = (symbol: string) => {
     setGuestPortfolioHoldings(prevHoldings => {
       const filteredHoldings = prevHoldings.filter(h => h.symbol !== symbol);
-      // Re-assign positions
       return filteredHoldings.map((h, index) => ({ ...h, position: index }));
     });
   };
@@ -272,12 +248,11 @@ const PortfolioPage = () => {
           return prevItems;
         }
         const newItem: WatchlistItem = {
-          symbol: stockInfo.symbol, // Use symbol from fetched data
+          symbol: stockInfo.symbol,
           name: stockInfo.name || upperSymbol,
           price: stockInfo.price,
           change: stockInfo.change || 0,
           changePercent: stockInfo.changePercent || 0,
-          // Add any other fields from WatchlistItem with defaults from stockInfo if available
         };
         toast({ title: "Added to Watchlist (Guest)", description: `${stockInfo.symbol} added.` });
         return [...prevItems, newItem];
@@ -312,7 +287,7 @@ const PortfolioPage = () => {
   const { data: userPortfolioData } = usePortfolio({ enabled: !!currentUser });
   const { data: userWatchlistData } = useWatchlist({ enabled: !!currentUser });
   const reorderPortfolioMutation = useReorderPortfolio();
-  const reorderWatchlistUserMutation = useReorderWatchlist(); // Assuming this hook exists and is imported
+  const reorderWatchlistUserMutation = useReorderWatchlist(); 
   
   const isUserReordering = reorderPortfolioMutation.isPending;
   const isUserWatchlistReordering = reorderWatchlistUserMutation.isPending;
@@ -338,6 +313,11 @@ const PortfolioPage = () => {
 
   /* ────────────────   DERIVED DATA - Step 3: Fetch Live Data ──────────────── */
   const { data: liveStockData = [] } = useMultipleStockInfo(allSymbols);
+  
+  // Log when stock data updates
+  useEffect(() => {
+    console.log(`Stock data updated at ${new Date().toLocaleTimeString()}, ${liveStockData.length} symbols loaded`);
+  }, [liveStockData]);
 
   /* ────────────────  DERIVED DATA - Step 4: Calculate Summary ──────────────── */
   const currentPortfolioSummary = useMemo((): PortfolioSummaryType => {
@@ -347,7 +327,7 @@ const PortfolioPage = () => {
       let totalCost = 0;
       let dayChange = 0;
 
-      basePortfolioHoldings.forEach(h => { // Use basePortfolioHoldings
+      basePortfolioHoldings.forEach(h => { 
         const live = liveStockData.find(s => s.symbol === h.symbol);
         const price = live?.price ?? h.currentPrice; 
         const changeVal = live?.change ?? h.change; 
@@ -370,15 +350,14 @@ const PortfolioPage = () => {
         dayChangePercent,
       };
     }
-    // For logged-in users, use summary from backend data
     return userPortfolioData?.summary || { 
       totalValue: 0, totalGain: 0, totalGainPercent: 0, dayChange: 0, dayChangePercent: 0 
     };
-  }, [isGuest, basePortfolioHoldings, userPortfolioData, liveStockData]); // Depends on base holdings, user data, live data
+  }, [isGuest, basePortfolioHoldings, userPortfolioData, liveStockData]); 
 
   /* ────────────────  DERIVED DATA - Step 5: Merged Holdings ──────────────── */
   const mergedHoldings = useMemo(() => {
-    return basePortfolioHoldings.map((h) => { // Use basePortfolioHoldings
+    return basePortfolioHoldings.map((h) => { 
       const live = liveStockData.find((s) => s.symbol === h.symbol) || ({} as any);
       const price = live.price ?? h.currentPrice;
       const change = live.change ?? h.change;
@@ -386,23 +365,22 @@ const PortfolioPage = () => {
       const value = price * h.shares;
       const gain = (price - h.averageCost) * h.shares;
       const gainPercent = h.averageCost ? (gain / (h.averageCost * h.shares)) * 100 : 0;
-      // Return merged holding, ensuring it includes all PortfolioHolding fields + calculated ones
       return { 
-          ...h, // Spread base holding first
+          ...h, 
           currentPrice: price, 
           change, 
           changePercent, 
           value, 
           gain, 
           gainPercent,
-          name: live.name ?? h.name // Update name from live if available
+          name: live.name ?? h.name 
       };
     });
   }, [basePortfolioHoldings, liveStockData]);
 
   /* ────────────────  DERIVED DATA - Step 6: Merged Watchlist ──────────────── */
   const mergedWatchlist = useMemo(() => {
-    return baseWatchlist.map(item => { // Use baseWatchlist
+    return baseWatchlist.map(item => { 
       const live = liveStockData.find(s => s.symbol === item.symbol);
       return {
         ...item,
@@ -418,13 +396,12 @@ const PortfolioPage = () => {
   const [localOrder, setLocalOrder] = useState<string[]>([]);
 
   useEffect(() => {
-    // Filter out cash holdings and then sort by position
     const ordered = [...basePortfolioHoldings]
-      .filter(holding => holding.type !== 'cash') // Filter out cash holdings from display
+      .filter(holding => holding.type !== 'cash') 
       .sort((a, b) => a.position - b.position)
       .map((h) => h.symbol);
     setLocalOrder(ordered);
-  }, [basePortfolioHoldings]); // Depend on base holdings
+  }, [basePortfolioHoldings]); 
 
   /* ────────────────   DND‑KIT SENSORS  ──────────────── */
   const sensors = useSensors(
@@ -447,24 +424,21 @@ const PortfolioPage = () => {
     if (oldIndex === -1 || newIndex === -1) return;
 
     const newOrderSymbols = arrayMove(localOrder, oldIndex, newIndex);
-    setLocalOrder(newOrderSymbols); // Optimistic UI update for localOrder
+    setLocalOrder(newOrderSymbols); 
 
     if (isGuest) {
       setIsGuestReordering(true);
-      // Update guestPortfolioHoldings order
       const reorderedGuestHoldings = newOrderSymbols.map((symbol, index) => {
         const holding = guestPortfolioHoldings.find(h => h.symbol === symbol);
-        return { ...holding!, position: index }; // Update position
+        return { ...holding!, position: index }; 
       });
       setGuestPortfolioHoldings(reorderedGuestHoldings);
       setIsGuestReordering(false);
     } else {
       try {
-        await reorderPortfolioMutation.mutateAsync(newOrderSymbols); // persist to the database
+        await reorderPortfolioMutation.mutateAsync(newOrderSymbols); 
       } catch (err) {
         console.error("Reorder failed, rolling back UI for user:", err);
-        // Rollback localOrder if server update fails for logged-in user
-        // The query's onError would typically handle cache rollback
         setLocalOrder(arrayMove(newOrderSymbols, newIndex, oldIndex)); 
       }
     }
@@ -494,8 +468,6 @@ const PortfolioPage = () => {
 
   const refetchPortfolio = useCallback(async () => {
     if (isGuest) {
-      // For guests, "refetching" might mean re-evaluating local data if it were more complex
-      // or if we had a local persistence layer. For now, it does little.
       console.log("Guest data is local, no server refetch.");
       return;
     }
@@ -512,16 +484,13 @@ const PortfolioPage = () => {
 
   /* ────────────────   GUEST CASH HANDLER ──────────────── */
   const handleGuestAddCash = (amount: number) => {
-    // Find if there's already a cash holding
     const existingCashIndex = guestPortfolioHoldings.findIndex(h => h.type === 'cash');
     
     if (existingCashIndex !== -1) {
-      // Update existing cash holding
       const updatedHoldings = [...guestPortfolioHoldings];
       const cashHolding = updatedHoldings[existingCashIndex];
       const newCashAmount = cashHolding.shares + amount;
       
-      // Ensure cash doesn't go below zero
       if (newCashAmount < 0) {
         toast({
           title: 'Error',
@@ -533,14 +502,13 @@ const PortfolioPage = () => {
       
       updatedHoldings[existingCashIndex] = {
         ...cashHolding,
-        shares: newCashAmount, // Shares represents cash amount
+        shares: newCashAmount,
         value: newCashAmount,
-        currentPrice: 1, // Cash always has price of 1
+        currentPrice: 1,
       };
       
       setGuestPortfolioHoldings(updatedHoldings);
     } else {
-      // Create new cash holding if none exists (only for positive amounts)
       if (amount <= 0) {
         toast({
           title: 'Error',
@@ -574,7 +542,6 @@ const PortfolioPage = () => {
     }
   };
   
-  // Get the current cash value for the portfolio
   const calculateCurrentCash = (): number => {
     const cashHolding = mergedHoldings.find(h => h.type === 'cash');
     return cashHolding ? cashHolding.shares : 0;

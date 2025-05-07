@@ -232,7 +232,9 @@ export function useMultipleStockInfo(symbols: string[]) {
     queryKey: ['multipleStockInfo', symbols],
     queryFn: () => Promise.all(symbols.map(fetchStock)),
     enabled: symbols.length > 0,
-    staleTime: 60000, // 1 minute
+    staleTime: 5000, 
+    refetchInterval: 15000, 
+    refetchOnWindowFocus: true,
   });
 }
 
