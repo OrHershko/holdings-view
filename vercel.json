@@ -1,9 +1,16 @@
 {
   "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/dist",
+  "framework": null,
+  "devCommand": null,
+  "installCommand": "cd frontend && npm install",
   "routes": [
     {
       "handle": "filesystem"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "https://holdingview-459108.lm.r.appspot.com/api/$1"
     },
     {
       "src": "/(.*)",

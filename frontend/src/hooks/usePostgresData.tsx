@@ -22,9 +22,6 @@ import {
 import type { StockHistoryData, StockData } from '@/api/stockApi';
 import { getAuth } from 'firebase/auth';
 
-// Still using API_BASE_URL for direct API calls
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://holdings-view.vercel.app/api';
-
 /**
  * Hooks for stock data from a single PostgreSQL source
  */
@@ -216,7 +213,7 @@ export function useStockInfo(symbol: string) {
   return useQuery({
     queryKey: ['stockInfo', symbol],
     queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/stock/${symbol}`);
+      const response = await fetch(`/api/stock/${symbol}`);
       return response.json();
     },
     refetchOnWindowFocus: false,

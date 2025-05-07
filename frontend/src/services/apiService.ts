@@ -28,5 +28,3 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}): Pro
     throw error;
   }
 };
-
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;

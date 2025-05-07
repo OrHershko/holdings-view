@@ -95,8 +95,7 @@ const UploadCsvDialog: React.FC<UploadCsvDialogProps> = ({ isOpen, onClose }) =>
 
         // --- Send data to backend --- 
         try {
-          const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://holdings-view.vercel.app/api';
-          const response = await fetchWithAuth(`${API_BASE_URL}/portfolio/upload`, {
+          const response = await fetchWithAuth(`/api/portfolio/upload`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

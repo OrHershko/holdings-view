@@ -1,4 +1,4 @@
-import { fetchWithAuth, API_BASE_URL } from './apiService';
+import { fetchWithAuth } from './apiService';
 import { WatchlistItem } from '@/services/stockService';
 
 /**
@@ -11,7 +11,7 @@ import { WatchlistItem } from '@/services/stockService';
  */
 export const getWatchlist = async (): Promise<WatchlistItem[]> => {
   try {
-    const response = await fetchWithAuth(`${API_BASE_URL}/watchlist`);
+    const response = await fetchWithAuth(`/api/watchlist`);
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch watchlist' }));
@@ -30,7 +30,7 @@ export const getWatchlist = async (): Promise<WatchlistItem[]> => {
  */
 export const addToWatchlist = async (symbol: string): Promise<WatchlistItem[]> => {
   try {
-    const response = await fetchWithAuth(`${API_BASE_URL}/watchlist/add/${symbol.toUpperCase()}`, {
+    const response = await fetchWithAuth(`/api/watchlist/add/${symbol.toUpperCase()}`, {
       method: 'POST',
     });
     
@@ -52,7 +52,7 @@ export const addToWatchlist = async (symbol: string): Promise<WatchlistItem[]> =
  */
 export const removeFromWatchlist = async (symbol: string): Promise<WatchlistItem[]> => {
   try {
-    const response = await fetchWithAuth(`${API_BASE_URL}/watchlist/remove/${symbol.toUpperCase()}`, {
+    const response = await fetchWithAuth(`/api/watchlist/remove/${symbol.toUpperCase()}`, {
       method: 'DELETE',
     });
     
@@ -73,7 +73,7 @@ export const removeFromWatchlist = async (symbol: string): Promise<WatchlistItem
  */
 export const reorderWatchlist = async (orderedSymbols: string[]): Promise<WatchlistItem[]> => {
   try {
-    const response = await fetchWithAuth(`${API_BASE_URL}/watchlist/reorder`, {
+    const response = await fetchWithAuth(`/api/watchlist/reorder`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

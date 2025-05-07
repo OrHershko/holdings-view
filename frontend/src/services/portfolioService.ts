@@ -1,4 +1,4 @@
-import { fetchWithAuth, API_BASE_URL } from './apiService';
+import { fetchWithAuth } from './apiService';
 import { PortfolioHolding, PortfolioSummary } from '@/api/stockApi';
 
 /**
@@ -24,7 +24,7 @@ export interface HoldingCreate {
  */
 export const getPortfolio = async (): Promise<PortfolioData> => {
   try {
-    const response = await fetchWithAuth(`${API_BASE_URL}/portfolio`);
+    const response = await fetchWithAuth(`/api/portfolio`);
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch portfolio' }));
@@ -43,7 +43,7 @@ export const getPortfolio = async (): Promise<PortfolioData> => {
  */
 export const addStock = async (stock: HoldingCreate): Promise<PortfolioData> => {
   try {
-    const response = await fetchWithAuth(`${API_BASE_URL}/portfolio/add`, {
+    const response = await fetchWithAuth(`/api/portfolio/add`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(stock),
@@ -67,7 +67,7 @@ export const addStock = async (stock: HoldingCreate): Promise<PortfolioData> => 
  */
 export const updateStock = async (stock: { symbol: string; shares: number; averageCost: number }): Promise<PortfolioData> => {
   try {
-    const response = await fetchWithAuth(`${API_BASE_URL}/portfolio/update`, {
+    const response = await fetchWithAuth(`/api/portfolio/update`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(stock),
@@ -91,7 +91,7 @@ export const updateStock = async (stock: { symbol: string; shares: number; avera
  */
 export const removeStock = async (symbol: string): Promise<PortfolioData> => {
   try {
-    const response = await fetchWithAuth(`${API_BASE_URL}/portfolio/delete/${symbol}`, {
+    const response = await fetchWithAuth(`/api/portfolio/delete/${symbol}`, {
       method: 'DELETE',
     });
     
@@ -113,7 +113,7 @@ export const removeStock = async (symbol: string): Promise<PortfolioData> => {
  */
 export const reorderPortfolio = async (orderedSymbols: string[]): Promise<PortfolioData> => {
   try {
-    const response = await fetchWithAuth(`${API_BASE_URL}/portfolio/reorder`, {
+    const response = await fetchWithAuth(`/api/portfolio/reorder`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ orderedSymbols }),
@@ -137,7 +137,7 @@ export const reorderPortfolio = async (orderedSymbols: string[]): Promise<Portfo
  */
 export const uploadPortfolio = async (holdings: HoldingCreate[]): Promise<PortfolioData> => {
   try {
-    const response = await fetchWithAuth(`${API_BASE_URL}/portfolio/upload`, {
+    const response = await fetchWithAuth(`/api/portfolio/upload`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(holdings),
@@ -158,7 +158,7 @@ export const uploadPortfolio = async (holdings: HoldingCreate[]): Promise<Portfo
 
 export const addCash = async (amount: number): Promise<PortfolioData> => {
   try {
-    const response = await fetchWithAuth(`${API_BASE_URL}/portfolio/cash`, {
+    const response = await fetchWithAuth(`/api/portfolio/cash`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ amount }),

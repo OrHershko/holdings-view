@@ -1,42 +1,32 @@
 import { StockData, StockHistoryData, PortfolioHolding, PortfolioSummary, NewsArticle } from '@/api/stockApi';
 import { SMA, RSI } from 'technicalindicators';
-import { fetchWithAuth, API_BASE_URL } from './apiService';
+import { fetchWithAuth } from './apiService';
 
-// API_BASE_URL is imported from apiService.ts
 
-console.log(`Using API Base URL: ${API_BASE_URL}`); // Log for debugging
-
-// Helper function to handle API errors consistently
 const handleApiError = (error: any, context: string): never => {
-  // Error message will be constructed based on error details
   let errorMessage;
   
   try {
     if (error.response) {
-      // The request was made and server responded with error status
       const status = error.response.status;
       const data = error.response.data;
       errorMessage = `API error (${status}): ${JSON.stringify(data) || 'No error details'}`;
     } else if (error.request) {
-      // Request was made but no response received
       errorMessage = 'API server didn\'t respond';
     } else {
-      // Something else happened
       errorMessage = error.message || 'Unknown API error';
     }
   } catch (e) {
-    // Error handling itself failed
     errorMessage = `${error}`;
   }
   
-  // Log with context and full error
   console.error(`${context} - ${errorMessage}`, error);
   throw new Error(errorMessage);
 };
 
 export const fetchStock = async (symbol: string): Promise<StockData> => {
   try {
-    const response = await fetchWithAuth(`${API_BASE_URL}/stock/${symbol}`);
+    const response = await fetchWithAuth(`/api/stock/${symbol}`);
     
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Failed to read error response');
@@ -45,7 +35,6 @@ export const fetchStock = async (symbol: string): Promise<StockData> => {
     
     const data = await response.json();
     
-    // Basic validation/transformation if needed
     return {
       symbol: data.symbol || 'N/A',
       name: data.name || 'N/A',
@@ -69,14 +58,12 @@ export const fetchStockHistory = async (
   period: string = '1y',
   interval: string = '1d'
 ): Promise<StockHistoryData> => {
-  // Calculate a longer period for data fetching to accommodate indicators
-  const fetchPeriod = getExtendedPeriod(period, 200); // Add enough for SMA 200
+  const fetchPeriod = getExtendedPeriod(period, 200); 
   
   try {
-    console.log(`Fetching history for ${symbol} with period=${fetchPeriod}, interval=${interval} from ${API_BASE_URL}`);
+    console.log(`Fetching history for ${symbol} with period=${fetchPeriod}, interval=${interval} from /api`);
     
-    // Use the extended period for fetching data and tell the backend to calculate SMAs
-    const response = await fetchWithAuth(`${API_BASE_URL}/history/${symbol}?period=${fetchPeriod}&interval=${interval}&calculate_sma=true`);
+    const response = await fetchWithAuth(`/api/history/${symbol}?period=${fetchPeriod}&interval=${interval}&calculate_sma=true`);
     
     if (!response.ok) {
       const errorBody = await response.text().catch(() => 'Failed to read error response');
@@ -91,12 +78,10 @@ export const fetchStockHistory = async (
                   Object.keys(rawData ?? {}), 
                   `History items: ${rawData?.history?.length ?? 0}`);
       
-      // Check if SMA data was included in the response
       if (rawData?.sma) {
         console.log(`Received SMA data from server: ${Object.keys(rawData.sma).join(', ')}`);
       }
                   
-      // Debug first history item to see actual structure               
       if (rawData?.history?.[0]) {
         console.log(`First history item structure:`, Object.keys(rawData.history[0]));
       }
@@ -105,7 +90,6 @@ export const fetchStockHistory = async (
       throw new Error(`Failed to parse history data: ${parseError.message}`);
     }
     
-    // Validate the response data
     if (!rawData || !Array.isArray(rawData.history) || rawData.history.length === 0) {
       console.warn(`No valid history data received for ${symbol}`);
       return { 
@@ -115,12 +99,9 @@ export const fetchStockHistory = async (
     }
 
     // --- Process the fetched data ---
-    // Extract close values, handling different case formats that might come from the backend
     const allCloseValues = rawData.history.map((h: any) => {
-      // Ensure each value is a valid number and handle both lowercase and uppercase field names
       if (!h || typeof h !== 'object') return null;
       
-      // Try both lowercase (preferred) and uppercase (fallback) field names
       let close = null;
       if (typeof h.close === 'number') {
         close = h.close;
@@ -133,17 +114,15 @@ export const fetchStockHistory = async (
       }
                    
       return isNaN(close) ? null : close;
-    }).filter((v: any) => v !== null); // Remove null values
+    }).filter((v: any) => v !== null); 
     
     const totalFetchedPoints = rawData.history.length;
     
     console.log(`Processed ${totalFetchedPoints} history points for ${symbol}, valid close values: ${allCloseValues.length}`);
 
-    // Safely calculate SMA with error handling
     const calculateSMA = (period: number, values: number[]): (number | null)[] => {
       try {
         const sma = SMA.calculate({ period, values });
-        // Pad with nulls at the beginning to match the length of the input array
         return Array(period - 1).fill(null).concat(sma);
       } catch (error) {
         console.error(`Error calculating SMA${period}:`, error);
@@ -151,26 +130,19 @@ export const fetchStockHistory = async (
       }
     };
     
-    // Will store SMA results for all periods
     const smaResultsFull: Record<string, (number | null)[]> = {};
     
-    // If server returned SMA data, use it directly
     if (rawData?.sma) {
-      // SMA data is already calculated on the server side
       const serverSMAData = rawData.sma;
       
-      // For each SMA period, map the server-provided values to our chart points
       const smaPeriods = [20, 50, 100, 150, 200]; 
       smaPeriods.forEach(period => {
         const smaKey = `sma${period}`;
         if (serverSMAData[smaKey] && Array.isArray(serverSMAData[smaKey])) {
-          // Extract SMA values from the server response
           const serverSMAValues = serverSMAData[smaKey];
           
-          // Create an array of the same length as totalFetchedPoints
           smaResultsFull[smaKey] = [];
           
-          // Map the server-calculated SMA values to our chart timepoints
           for (let i = 0; i < totalFetchedPoints; i++) {
             if (i < serverSMAValues.length) {
               smaResultsFull[smaKey][i] = serverSMAValues[i];
@@ -181,7 +153,6 @@ export const fetchStockHistory = async (
           
           console.log(`Using server-calculated ${smaKey}: ${smaResultsFull[smaKey].filter(v => v !== null).length} valid points`);
         } else {
-          // Fallback to calculating locally if server didn't provide this period
           console.warn(`Server did not provide ${smaKey} data, calculating locally`);
           if (allCloseValues.length >= period) {
             smaResultsFull[smaKey] = calculateSMA(period, allCloseValues);
@@ -191,10 +162,8 @@ export const fetchStockHistory = async (
         }
       });
     } else {
-      // Fallback to calculating SMAs locally if server didn't provide SMA data
       console.warn("Server did not provide SMA data, calculating locally");
       
-      // Calculate each SMA period using chart data
       const smaPeriods = [20, 50, 100, 150, 200];
       smaPeriods.forEach(period => {
         if (allCloseValues.length >= period) {
@@ -205,14 +174,11 @@ export const fetchStockHistory = async (
       });
     }
     
-    // Safely calculate RSI with error handling
     let rsiFull: (number | null)[] = Array(totalFetchedPoints).fill(null);
     try {
       if (allCloseValues.length >= 14) {
         const rsiResult = RSI.calculate({ period: 14, values: allCloseValues });
-        // Pad RSI results
         rsiFull = Array(14 - 1).fill(null).concat(rsiResult);
-        // Ensure array length matches
         if (rsiFull.length > totalFetchedPoints) {
           rsiFull = rsiFull.slice(0, totalFetchedPoints);
         }
@@ -237,18 +203,10 @@ export const fetchStockHistory = async (
       const num = typeof value === 'number' ? value : parseFloat(String(value));
       return isNaN(num) ? null : num;
     };
+
     
-    // Helper to extract dates with pattern matching - removing since it's not used
-    /*const dateStrFromPattern = (pattern: string, sampleStr: string) => {
-      const regex = new RegExp(pattern);
-      const match = regex.exec(sampleStr);
-      return match ? match[0] : null;
-    };*/
-    
-    // Helper to handle both lowercase and uppercase field names from API
     const getField = (obj: any, field: string): any => {
       if (!obj || typeof obj !== 'object') return null;
-      // Try lowercase first (preferred), then uppercase
       return obj[field.toLowerCase()] !== undefined ? obj[field.toLowerCase()] :
              obj[field.charAt(0).toUpperCase() + field.slice(1)] !== undefined ? 
              obj[field.charAt(0).toUpperCase() + field.slice(1)] : null;
@@ -256,7 +214,6 @@ export const fetchStockHistory = async (
 
     // --- Transform final sliced data ---
     const result = {
-      // Handle both lowercase and uppercase field names from the API
       dates: finalHistory.map((h: any) => getField(h, 'date')),
       prices: finalHistory.map((h: any) => safeNumber(getField(h, 'close'))),
       volume: finalHistory.map((h: any) => safeNumber(getField(h, 'volume'))),
@@ -265,7 +222,6 @@ export const fetchStockHistory = async (
       high: finalHistory.map((h: any) => safeNumber(getField(h, 'high'))),
       low: finalHistory.map((h: any) => safeNumber(getField(h, 'low'))),
       
-      // Slice indicators to the same period
       sma20: smaResultsFull.sma20?.slice(startIndex) || [],
       sma50: smaResultsFull.sma50?.slice(startIndex) || [],
       sma100: smaResultsFull.sma100?.slice(startIndex) || [],
@@ -279,7 +235,6 @@ export const fetchStockHistory = async (
   } catch (error) {
     console.error(`Error fetching stock history for ${symbol}:`, error);
 
-    // Return empty data on error
     return { 
       dates: [], prices: [], volume: [], open: [], close: [], high: [], low: [],
       sma20: [], sma50: [], sma100: [], sma150: [], sma200: [], rsi: []
@@ -290,32 +245,26 @@ export const fetchStockHistory = async (
 // --- Helper Functions ---
 
 function getExtendedPeriod(displayPeriod: string, maxIndicatorPeriod: number): string {
-    // If displayPeriod is 'max', we need enough history for the indicator.
-    // Let's assume 'max' implies fetching a very long duration like '10y' or more,
-    // which should be sufficient for a 200-day indicator.
-    // If the backend handles 'max' intelligently, we might just return 'max'.
-    // For simplicity here, let's ensure at least enough days for the indicator if 'max'.
+    
     if (displayPeriod.toLowerCase() === 'max') {
-        // Decide on a sufficiently long period for 'max' that covers indicators
-        return '10y'; // Example: fetch 10 years for 'max'
+        return '10y'; 
     }
 
-    const match = displayPeriod.match(/(\d+)([dmy]o?)/); // Added 'o?' for 'mo'
-    if (!match) return `${maxIndicatorPeriod}d`; // Default if can't parse
+    const match = displayPeriod.match(/(\d+)([dmy]o?)/); 
+    if (!match) return `${maxIndicatorPeriod}d`; 
 
     const [_, valueStr, unitRaw] = match;
     const value = parseInt(valueStr);
-    const unit = unitRaw.charAt(0); // d, m, y
+    const unit = unitRaw.charAt(0); 
 
     let displayDays = 0;
     if (unit === 'd') displayDays = value;
-    else if (unit === 'm') displayDays = value * 30; // Approx days
-    else if (unit === 'y') displayDays = value * 365; // Approx days
-    else return `${maxIndicatorPeriod}d`; // Fallback
+    else if (unit === 'm') displayDays = value * 30; 
+    else if (unit === 'y') displayDays = value * 365; 
+    else return `${maxIndicatorPeriod}d`; 
 
     const totalDaysNeeded = displayDays + maxIndicatorPeriod;
 
-    // Convert back to appropriate period format for yfinance
     if (totalDaysNeeded > 730) return `${Math.ceil(totalDaysNeeded / 365)}y`;
     if (totalDaysNeeded > 60) return `${Math.ceil(totalDaysNeeded / 30)}mo`;
     return `${totalDaysNeeded}d`;
@@ -361,7 +310,7 @@ export const fetchPortfolio = async (): Promise<{
   summary: PortfolioSummary;
 }> => {
   try {
-    const response = await fetchWithAuth(`${API_BASE_URL}/portfolio`);
+    const response = await fetchWithAuth(`/api/portfolio`);
     if (!response.ok) throw new Error(`Failed to fetch portfolio: ${response.status}`);
     
     const data = await response.json();
@@ -418,13 +367,13 @@ export interface WatchlistItem {
 // --- Watchlist Service Functions ---
 
 export const fetchWatchlist = async (): Promise<WatchlistItem[]> => {
-  const response = await fetchWithAuth(`${API_BASE_URL}/watchlist`);
+  const response = await fetchWithAuth(`/api/watchlist`);
   if (!response.ok) throw new Error('Failed to fetch watchlist');
   return response.json();
 };
 
 export const addToWatchlist = async (symbol: string): Promise<{ message: string }> => {
-  const response = await fetchWithAuth(`${API_BASE_URL}/watchlist/add/${symbol.toUpperCase()}`, {
+  const response = await fetchWithAuth(`/api/watchlist/add/${symbol.toUpperCase()}`, {
     method: 'POST',
   });
   if (!response.ok) {
@@ -435,7 +384,7 @@ export const addToWatchlist = async (symbol: string): Promise<{ message: string 
 };
 
 export const removeFromWatchlist = async (symbol: string): Promise<{ message: string }> => {
-  const response = await fetchWithAuth(`${API_BASE_URL}/watchlist/remove/${symbol.toUpperCase()}`, {
+  const response = await fetchWithAuth(`/api/watchlist/remove/${symbol.toUpperCase()}`, {
     method: 'DELETE',
   });
   if (!response.ok) {
@@ -446,7 +395,7 @@ export const removeFromWatchlist = async (symbol: string): Promise<{ message: st
 };
 
 export const searchStocks = async (query: string): Promise<StockData[]> => {
-  const response = await fetchWithAuth(`${API_BASE_URL}/search?q=${encodeURIComponent(query)}`);
+  const response = await fetchWithAuth(`/api/search?q=${encodeURIComponent(query)}`);
   if (!response.ok) throw new Error('Failed to search stocks');
   const data = await response.json();
   return data.results?.map((item: any) => ({
@@ -462,7 +411,7 @@ export const searchStocks = async (query: string): Promise<StockData[]> => {
 
 export const fetchNews = async (symbol: string): Promise<NewsArticle[]> => {
   try {
-    const response = await fetchWithAuth(`${API_BASE_URL}/news/${symbol}`);
+    const response = await fetchWithAuth(`/api/news/${symbol}`);
     
     if (!response.ok) {
       console.warn(`Failed to fetch news for ${symbol}: ${response.status} ${response.statusText}`);
@@ -500,7 +449,7 @@ export const fetchNews = async (symbol: string): Promise<NewsArticle[]> => {
  */
 export const fetchDetailedStockInfo = async (symbol: string): Promise<any> => {
   try {
-    const response = await fetchWithAuth(`${API_BASE_URL}/stock/${symbol}/detailed`);
+    const response = await fetchWithAuth(`/api/stock/${symbol}/detailed`);
     
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Failed to read error response');

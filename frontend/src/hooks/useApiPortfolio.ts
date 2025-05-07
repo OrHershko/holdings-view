@@ -1,23 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchPortfolio } from '@/services/stockService';
-import { fetchWithAuth, API_BASE_URL } from '@/services/apiService';
-import { PortfolioHolding, PortfolioSummary } from '@/api/stockApi';
+import { fetchWithAuth } from '@/services/apiService';
+import { HoldingCreate, PortfolioData } from '@/api/stockApi';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { useEffect } from 'react';
 
-// Interface for the PortfolioData structure
-interface PortfolioData {
-  holdings: PortfolioHolding[];
-  summary: PortfolioSummary;
-}
-
-// Interface for creating/updating a holding
-interface HoldingCreate {
-  symbol: string;
-  shares: number;
-  averageCost: number;
-  position?: number;
-}
 
 /**
  * Hook for managing user portfolio data through the API
@@ -27,10 +14,8 @@ export const useApiPortfolio = () => {
   const auth = getAuth();
   const userId = auth.currentUser?.uid;
   
-  // Listen for auth state changes to invalidate queries when user changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      // Force refetch portfolio when user changes
       queryClient.invalidateQueries({ queryKey: ['portfolio'] });
       queryClient.invalidateQueries({ queryKey: ['api-portfolio'] });
     });
@@ -38,18 +23,16 @@ export const useApiPortfolio = () => {
     return () => unsubscribe();
   }, [queryClient]);
   
-  // Query for fetching portfolio data
   const portfolioQuery = useQuery({
     queryKey: ['api-portfolio', userId],
     queryFn: fetchPortfolio,
     staleTime: 1000 * 60 * 5, // 5 minutes
-    enabled: !!userId, // Only run if user is authenticated
+    enabled: !!userId,
   });
   
-  // Mutation for adding a stock
   const addStockMutation = useMutation({
     mutationFn: async (holding: HoldingCreate) => {
-      const response = await fetchWithAuth(`${API_BASE_URL}/portfolio`, {
+      const response = await fetchWithAuth(`/api/portfolio`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -69,10 +52,9 @@ export const useApiPortfolio = () => {
     },
   });
   
-  // Mutation for removing a stock
   const removeStockMutation = useMutation({
     mutationFn: async (symbol: string) => {
-      const response = await fetchWithAuth(`${API_BASE_URL}/portfolio/${symbol}`, {
+      const response = await fetchWithAuth(`/api/portfolio/${symbol}`, {
         method: 'DELETE',
       });
       
@@ -88,11 +70,10 @@ export const useApiPortfolio = () => {
     },
   });
   
-  // Mutation for updating a stock
   const updateStockMutation = useMutation({
     mutationFn: async (params: { symbol: string; shares: number; averageCost: number }) => {
       const { symbol, shares, averageCost } = params;
-      const response = await fetchWithAuth(`${API_BASE_URL}/portfolio/update`, {
+      const response = await fetchWithAuth(`/api/portfolio/update`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -112,11 +93,9 @@ export const useApiPortfolio = () => {
     },
   });
   
-  // Mutation for reordering the portfolio
   const reorderPortfolioMutation = useMutation({
     mutationFn: async (order: string[]) => {
-      // The backend expects an object with 'orderedSymbols' property
-      const response = await fetchWithAuth(`${API_BASE_URL}/portfolio/reorder`, {
+      const response = await fetchWithAuth(`/api/portfolio/reorder`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -131,19 +110,14 @@ export const useApiPortfolio = () => {
       
       return response.json();
     },
-    // Use optimistic updates for smoother UX during reordering
     onMutate: async (newOrder) => {
-      // Cancel any outgoing refetches to avoid overwriting our optimistic update
       await queryClient.cancelQueries({ queryKey: ['portfolio'] });
       
-      // Snapshot the previous value
       const previousData = queryClient.getQueryData<PortfolioData>(['portfolio']);
       
       if (previousData) {
-        // Create a copy of the data
         const updatedHoldings = [...previousData.holdings];
         
-        // Update positions based on the new order
         newOrder.forEach((symbol, index) => {
           const holdingIndex = updatedHoldings.findIndex(h => h.symbol === symbol);
           if (holdingIndex !== -1) {
@@ -154,7 +128,6 @@ export const useApiPortfolio = () => {
           }
         });
         
-        // Optimistically update the cache
         queryClient.setQueryData(['portfolio'], {
           ...previousData,
           holdings: updatedHoldings
@@ -163,16 +136,10 @@ export const useApiPortfolio = () => {
       
       return { previousData };
     },
-    // If the mutation fails, roll back to the previous state
     onError: (_err, _newOrder, context) => {
       if (context?.previousData) {
         queryClient.setQueryData(['portfolio'], context.previousData);
       }
-    },
-    // Refetch after success if needed
-    onSettled: () => {
-      // No need to invalidate queries if we're using optimistic updates
-      // queryClient.invalidateQueries({ queryKey: ['portfolio'] });
     },
   });
   

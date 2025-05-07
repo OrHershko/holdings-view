@@ -82,7 +82,7 @@ Instructions:
 `;
 
     const response = await axios.post(
-      `${import.meta.env.VITE_API_BASE_URL}/stock-analysis`,
+      `/api/stock-analysis`,
       {
         model: 'meta-llama/llama-4-maverick:free',
         messages: [

@@ -31,6 +31,14 @@ export interface PortfolioHolding {
   purchaseDate?: string;
 }
 
+export interface HoldingCreate {
+  symbol: string;
+  shares: number;
+  averageCost: number;
+  position?: number;
+  purchaseDate?: string;
+}
+
 export interface PortfolioSummary {
   totalValue: number;
   totalGain: number;

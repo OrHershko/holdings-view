@@ -1,5 +1,5 @@
 import { auth } from '../config/firebase';
-import { API_BASE_URL, fetchWithAuth } from './apiService';
+import { fetchWithAuth } from './apiService';
 
 /**
  * User Service
@@ -19,7 +19,7 @@ export const createOrUpdateUserProfile = async (userData: {
 
   try {
     // Call the API to create or update the user profile
-    const response = await fetchWithAuth(`${API_BASE_URL}/user/profile`, {
+    const response = await fetchWithAuth(`/api/user/profile`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -50,7 +50,7 @@ export const getUserProfile = async () => {
   if (!user) throw new Error('No user is currently signed in');
   
   try {
-    const response = await fetchWithAuth(`${API_BASE_URL}/user/profile`);
+    const response = await fetchWithAuth(`/api/user/profile`);
     
     if (!response.ok) {
       // If user profile doesn't exist, create a new one

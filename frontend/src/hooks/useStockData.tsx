@@ -4,8 +4,6 @@ import type { StockHistoryData, StockData } from '@/api/stockApi';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { useEffect } from 'react';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://holdings-view.vercel.app/api';
-
 export function useStock(symbol: string) {
   return useQuery({
     queryKey: ['stock', symbol],
@@ -18,17 +16,14 @@ export function useStock(symbol: string) {
 export function useStockHistory(
   symbol: string,
   period: string = '1y',
-  interval: string = '1d', // Add interval parameter with default
-  options: any = {} // Allow custom query options
+  interval: string = '1d', 
+  options: any = {} 
 ) {
   return useQuery<StockHistoryData, Error>({
-    // Include interval in the queryKey for unique caching
     queryKey: ['stockHistory', symbol, period, interval],
-    // Pass interval to the fetch function
     queryFn: () => fetchStockHistory(symbol, period, interval),
     enabled: !!symbol,
-    staleTime: 300000, // 5 minutes
-    // Apply any additional options passed
+    staleTime: 300000, 
     ...options
   });
 }
@@ -38,10 +33,8 @@ export function usePortfolio() {
   const auth = getAuth();
   const userId = auth.currentUser?.uid;
   
-  // Listen for auth state changes to invalidate portfolio queries when user changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      // Force refetch portfolio when user changes
       queryClient.invalidateQueries({ queryKey: ['portfolio'] });
     });
     
@@ -55,7 +48,6 @@ export function usePortfolio() {
     refetchOnMount: true,
     refetchOnWindowFocus: true,
     gcTime: 0,
-    // Only fetch when a user is logged in
     enabled: !!userId
   });
 }
@@ -65,10 +57,8 @@ export function useWatchlist() {
   const auth = getAuth();
   const userId = auth.currentUser?.uid;
   
-  // Listen for auth state changes to invalidate queries when user changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      // Force refetch watchlist when user changes
       queryClient.invalidateQueries({ queryKey: ['watchlist'] });
     });
     
@@ -78,9 +68,7 @@ export function useWatchlist() {
   return useQuery<WatchlistItem[]>({
     queryKey: ['watchlist', userId],
     queryFn: fetchWatchlist,
-    // Use the original settings from your app for consistency
-    staleTime: 60000, // 1 minute
-    // Only fetch when a user is logged in
+    staleTime: 60000, 
     enabled: !!userId,
   });
 }
@@ -90,7 +78,7 @@ export function useStockSearch(query: string) {
     queryKey: ['stockSearch', query],
     queryFn: () => searchStocks(query),
     enabled: query.length > 1,
-    staleTime: 60000, // 1 minute
+    staleTime: 60000, 
   });
 }
 
@@ -101,10 +89,8 @@ export function useAddToWatchlist() {
   return useMutation({
     mutationFn: (symbol: string) => addToWatchlist(symbol),
     onSuccess: () => {
-      // Invalidate and refetch watchlist query after successful add
       queryClient.invalidateQueries({ queryKey: ['watchlist'] });
     },
-    // Optional: Add onError for error handling
   });
 }
 
@@ -113,10 +99,8 @@ export function useRemoveFromWatchlist() {
   return useMutation({
     mutationFn: (symbol: string) => removeFromWatchlist(symbol),
     onSuccess: () => {
-      // Invalidate and refetch watchlist query after successful remove
       queryClient.invalidateQueries({ queryKey: ['watchlist'] });
     },
-    // Optional: Add onError for error handling
   });
 }
 
@@ -124,7 +108,7 @@ export const useStockInfo = (symbol: string) => {
   return useQuery({
     queryKey: ['stockInfo', symbol],
     queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/stock/${symbol}`);
+      const response = await fetch(`/api/stock/${symbol}`);
       return response.json();
     },
     refetchOnWindowFocus: false,
@@ -136,6 +120,6 @@ export function useMultipleStockInfo(symbols: string[]) {
     queryKey: ['multipleStockInfo', symbols],
     queryFn: () => Promise.all(symbols.map(fetchStock)),
     enabled: symbols.length > 0,
-    staleTime: 60000, // 1 minute
+    staleTime: 60000, 
   });
 }
